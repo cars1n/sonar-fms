@@ -10,7 +10,6 @@ use App\Models\Student;
 use App\Models\Tenant;
 use App\Models\User;
 use GrantHolle\PowerSchool\Api\RequestBuilder;
-use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -454,23 +453,51 @@ class PowerSchoolProvider implements SisProvider
                     ];
                 }
             }
-
-            if (count($newUsers) % 500 === 0) {
-                DB::table('users')->insert($newUsers);
-                $newUsers = [];
-            }
         }
 
-        DB::table('student_user')
-            ->join('students', function (JoinClause $join) use ($school) {
-                $join->on('student_uuid', '=', 'students.uuid')
-                    ->where('students.school_id', $school->id);
-            })
-            ->delete();
+        $this->persistSchoolStudentGuardians(
+            $school,
+            $newUsers,
+            $studentUser
+        );
+    }
 
-        DB::table('users')->insert($newUsers);
+    /**
+     * Add or update the valid relationships returned by PowerSchool. This
+     * mirrors the per-student contact sync: an empty or partial response must
+     * not remove relationships that can still be refreshed separately.
+     */
+    protected function persistSchoolStudentGuardians(
+        School $school,
+        array $newUsers,
+        array $studentUsers
+    ): void {
+        DB::transaction(function () use ($newUsers, $studentUsers) {
+            foreach (array_chunk($newUsers, 500) as $users) {
+                DB::table('users')->insert($users);
+            }
 
-        DB::table('student_user')->insert($studentUser);
+            foreach (array_chunk($studentUsers, 500) as $relations) {
+                DB::table('student_user')->upsert(
+                    $relations,
+                    ['student_uuid', 'user_uuid'],
+                    ['relationship']
+                );
+            }
+        });
+
+        // PowerSchool can return an empty or partial response. Heal access for
+        // every relationship retained at this school, not only those present
+        // in the current response. This is intentionally outside the database
+        // transaction because Bouncer also invalidates its external cache.
+        $school->students()
+            ->select('students.uuid')
+            ->with('users')
+            ->chunk(100, function (Collection $students) {
+                $students->each(function (Student $student) {
+                    $student->grantGuardianViewPermissions($student->users);
+                });
+            });
     }
 
     /**
