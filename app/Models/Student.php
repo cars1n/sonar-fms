@@ -229,8 +229,35 @@ class Student extends Model implements Exportable, Searchable
             }, []);
 
         $this->users()->syncWithoutDetaching($users);
+        $this->grantGuardianViewPermissions(
+            User::whereIn('uuid', array_keys($users))->get()
+        );
 
         return $users;
+    }
+
+    /**
+     * Ensure guardians attached to this student can open the student and their
+     * invoices. Guardian access is global because it can span schools.
+     */
+    public function grantGuardianViewPermissions(Collection $guardians): void
+    {
+        $originalScope = \Bouncer::scope()->get();
+
+        try {
+            \Bouncer::scope()->remove();
+
+            $guardians->each(function (User $guardian) {
+                $guardian->allow('view', $this);
+                \Bouncer::refreshFor($guardian);
+            });
+        } finally {
+            if ($originalScope === null) {
+                \Bouncer::scope()->remove();
+            } else {
+                \Bouncer::scope()->to($originalScope);
+            }
+        }
     }
 
     public function getSearchResult(): SearchResult
