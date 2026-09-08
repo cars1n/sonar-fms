@@ -74,6 +74,7 @@ export default defineComponent({
     const search = debounce(async (term) => {
        const { data } = await $http.post('/search/students', {
          s: term,
+         status: 'all',
          exclude: props.exclude,
       })
       students.value = data

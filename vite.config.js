@@ -6,7 +6,7 @@ import fs from 'fs'
 import dotenv from 'dotenv'
 dotenv.config()
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   resolve: {
     alias: {
       axios: path.resolve(__dirname, 'node_modules/axios/dist/axios.js'),
@@ -32,15 +32,18 @@ export default defineConfig({
     //   key: 'imlZ812f4qb42S1yhjvJGl1zmlOuZuoO',
     // })
   ],
-  server: detectServerConfig(),
-})
+  server: command === 'serve' ? detectServerConfig() : undefined,
+}))
 
 function detectServerConfig () {
   if (
     (process.env.APP_ENV && process.env.APP_ENV !== 'production') ||
     process.env.NODE_ENV !== 'production'
   ) {
-    const url = new URL(process.env.APP_URL)
+    const url = new URL(process.env.APP_URL || 'http://localhost')
+    if (!process.env.APP_SSL_KEY || !process.env.APP_SSL_CERT) {
+      return { host: '0.0.0.0', hmr: { host: url.hostname } }
+    }
 
     // config.stats = {
     //   children: true

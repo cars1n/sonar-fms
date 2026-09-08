@@ -35,4 +35,14 @@ return [
         'npm' => env('NPM_BINARY', '/usr/bin/npm'),
     ],
 
+    'crm_portal' => [
+        'tenant_id' => (int) env('CRM_PORTAL_TENANT_ID', 0),
+        'school_sis_ids' => array_map('intval', array_filter(explode(',', (string) env('CRM_PORTAL_SCHOOL_SIS_IDS', '')))),
+        'identity_url' => env('CRM_PORTAL_IDENTITY_URL'),
+        'enabled' => (bool) env('CRM_PORTAL_ENABLED', false),
+        'webhook_url' => env('CRM_PORTAL_WEBHOOK_URL'),
+        'webhook_secret' => env('CRM_PORTAL_WEBHOOK_SECRET'),
+        'token' => env('CRM_PORTAL_API_TOKEN'),
+    ],
+
 ];

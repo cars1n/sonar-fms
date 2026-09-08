@@ -1,4 +1,8 @@
 <template>
+  <div v-if="invoice.published_at && !invoice.parent_uuid && can('invoices.update')" class="p-1">
+    <SonarMenuItem is="inertia-link" :href="`/invoices/${invoice.uuid}/portal-notification`" as="button" method="post" :data="{ action: 'resend' }" preserve-scroll>{{ __('Send invoice to guardians again') }}</SonarMenuItem>
+    <SonarMenuItem is="inertia-link" :href="`/invoices/${invoice.uuid}/portal-notification`" as="button" method="post" :data="{ action: 'cancel' }" preserve-scroll>{{ __('Cancel pending guardian emails') }}</SonarMenuItem>
+  </div>
   <div class="p-1">
     <SonarMenuItem v-if="can('invoices.view') && showView" is="inertia-link" :href="`/invoices/${invoice.uuid}`">
       {{ __('View invoice') }}

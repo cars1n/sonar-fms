@@ -320,7 +320,7 @@ export default {
       available_at: props.invoiceImport.mapping?.available_at || addMapFieldValue(),
       due_at: props.invoiceImport.mapping?.due_at || addMapFieldValue(),
       grade_level_adjustment: props.invoiceImport.mapping?.grade_level_adjustment || addMapFieldValue(0),
-      notify: props.invoiceImport.mapping?.notify || false,
+      notify: props.invoiceImport.mapping?.notify ?? true,
       items: props.invoiceImport.mapping?.items || [],
       scholarships: props.invoiceImport.mapping?.scholarships || [],
       payment_schedules: props.invoiceImport.mapping?.payment_schedules || [],

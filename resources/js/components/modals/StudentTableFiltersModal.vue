@@ -43,6 +43,7 @@
       <InputWrap>
         <Label for="enrolled">{{ __('Enrollment Status') }}</Label>
         <Select id="enrolled" v-model="localFilters.status">
+          <option value="applicants">{{ __('Applicants') }}</option>
           <option value="enrolled">{{ __('Enrolled') }}</option>
           <option value="withdrawn">{{ __('Not enrolled') }}</option>
           <option value="all">{{ __('Enrolled and not enrolled') }}</option>

@@ -25,6 +25,8 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->command(SyncTenantSisData::class)->hourly();
+        $schedule->command('portal:sync')->everyMinute()->withoutOverlapping();
+        $schedule->command('portal:sync --full')->hourly()->withoutOverlapping();
 
         $schedule->command('cache:prune-stale-tags')->hourly();
 

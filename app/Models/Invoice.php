@@ -144,6 +144,14 @@ class Invoice extends Model implements Exportable, Searchable
     protected static function booted()
     {
         static::saved(function (Invoice $invoice) {
+            if (config('services.crm_portal.enabled')) {
+                \Illuminate\Support\Facades\DB::afterCommit(function () use ($invoice): void {
+                    $current = Invoice::find($invoice->uuid);
+                    if ($current) {
+                        app(\App\Services\PortalPublisher::class)->capture($current);
+                    }
+                });
+            }
             if ($invoice->isDirty('voided_at')) {
                 // __('Invoice voided by :user.')
                 activity()
@@ -1380,7 +1388,7 @@ class Invoice extends Model implements Exportable, Searchable
             $this->created_at->format('n'),
             $this->invoice_number,
             $this->invoice_number,
-            now()->format('Ymd-Hi-s'),
+            now()->format('Ymd-Hi-s').'-'.Str::uuid(),
         ];
 
         return Str::replaceArray('?', $parameters, '?/?/?/?/?/?-?.pdf');

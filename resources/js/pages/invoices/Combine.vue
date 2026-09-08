@@ -211,7 +211,7 @@ export default defineComponent({
       invoice_date: props.invoice.invoice_date ? new Date(props.invoice.invoice_date) : new Date(),
       available_at: props.invoice.available_at ? new Date(props.invoice.available_at) : null,
       due_at: props.invoice.due_at ? new Date(props.invoice.due_at) : null,
-      notify: isUndefined(props.invoice.notify) ? false : props.invoice.notify,
+      notify: isUndefined(props.invoice.notify) ? true : props.invoice.notify,
       payment_schedules: props.invoice.payment_schedules || [],
     })
     const removeInvoice = invoice => {

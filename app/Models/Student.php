@@ -68,7 +68,11 @@ class Student extends Model implements Exportable, Searchable
         // Enrollment status
         $status = $filters['status'] ?? 'enrolled';
 
-        if ($status !== 'all') {
+        $builder->whereNull('merged_into_uuid');
+
+        if ($status === 'applicants') {
+            $builder->whereNull('sis_id')->whereNotNull('crm_reference');
+        } elseif ($status !== 'all') {
             $builder->where('enrolled', $status === 'enrolled');
         }
 
@@ -164,6 +168,9 @@ class Student extends Model implements Exportable, Searchable
 
     public function syncFromSis()
     {
+        if (! $this->sis_id || $this->merged_into_uuid) {
+            return;
+        }
         $this->tenant->sisProvider()
             ->syncStudent($this);
     }
@@ -178,6 +185,9 @@ class Student extends Model implements Exportable, Searchable
      */
     public function syncContacts(?Collection $schools = null): array
     {
+        if (! $this->sis_id || $this->merged_into_uuid) {
+            return [];
+        }
         $response = PowerSchool::get("/ws/contacts/student/{$this->sis_id}");
 
         if (! $schools) {

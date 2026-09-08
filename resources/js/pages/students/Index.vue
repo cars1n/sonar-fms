@@ -18,6 +18,7 @@
       <FadeInGroup>
         <DismissibleBadge v-if="filters.status !== 'enrolled'" @dismiss="filters.status = 'enrolled'">
           <span v-if="filters.status === 'withdrawn'">{{ __('Not enrolled') }}</span>
+          <span v-else-if="filters.status === 'applicants'">{{ __('Applicants') }}</span>
           <span v-else>{{ __('Enrolled and not enrolled') }}</span>
         </DismissibleBadge>
 

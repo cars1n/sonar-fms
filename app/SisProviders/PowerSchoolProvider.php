@@ -196,53 +196,11 @@ class PowerSchoolProvider implements SisProvider
             ->to("/ws/v1/school/{$school->sis_id}/student")
             ->q('school_enrollment.enroll_status==(A,P,G,T,H,I)')
             ->expansions('contact_info,school_enrollment,initial_enrollment');
-        $newStudents = [];
-
         while ($results = $builder->paginate()) {
-            $now = now()->format('Y-m-d H:i:s');
-
-            // Get courses that exist already
-            $existingStudents = $school->students()
-                ->whereIn('sis_id', collect($results)->pluck('id'))
-                ->get()
-                ->keyBy('sis_id');
-
-            $entries = array_reduce(
-                $results->toArray(),
-                function ($entries, $student) use ($school, $now, $existingStudents) {
-                    $attributes = $this->getStudentAttributes($student);
-
-                    // If it exists, then update
-                    if ($existingStudent = $existingStudents->get($student['id'])) {
-                        $existingStudent->update($attributes);
-
-                        return $entries;
-                    }
-
-                    // It's a new student
-                    $attributes['uuid'] = UuidFactory::make();
-                    $attributes['tenant_id'] = $this->tenant->id;
-                    $attributes['school_id'] = $school->id;
-                    $attributes['sis_id'] = $student['id'];
-                    $attributes['created_at'] = $now;
-                    $attributes['updated_at'] = $now;
-                    $entries[] = $attributes;
-
-                    return $entries;
-                },
-                []
-            );
-
-            $newStudents = array_merge($newStudents, $entries);
-
-            // Batch inserts by 500
-            if (count($newStudents) % 500 === 0) {
-                DB::table('students')->insert($newStudents);
-                $newStudents = [];
+            foreach ($results as $student) {
+                app(\App\Services\PortalStudentIdentity::class)->fromSis($school, (int) $student['id'], $this->getStudentAttributes($student));
             }
         }
-
-        DB::table('students')->insert($newStudents);
     }
 
     public function syncStudent($sisId)
@@ -260,26 +218,10 @@ class PowerSchoolProvider implements SisProvider
 
         $attributes = $this->getStudentAttributes($response->student);
 
-        if ($student) {
-            $student->update($attributes);
-
-            return;
+        $school = $student ? $student->school : School::where('sis_id', $response->school_enrollment->school_id)->first();
+        if ($school) {
+            app(\App\Services\PortalStudentIdentity::class)->fromSis($school, (int) $id, $attributes);
         }
-
-        $school = School::where('sis_id', $response->school_enrollment->school_id)
-            ->first();
-
-        if (! $school) {
-            return;
-        }
-
-        $now = now();
-        $attributes['school_id'] = $school->id;
-        $attributes['sis_id'] = $id;
-        $attributes['created_at'] = $now;
-        $attributes['updated_at'] = $now;
-
-        $this->tenant->students()->create($attributes);
     }
 
     protected function getStudentAttributes($student)

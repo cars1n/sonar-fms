@@ -6,6 +6,12 @@
           <Label for="student-search-term">{{ __('Seach for student') }}</Label>
           <Input v-model="term" id="student-search-term" :placeholder="__('Search by name, email or student number')" type="search" autofocus />
 
+          <label for="invoice-student-status">{{ __('Students to search') }}</label>
+          <select id="invoice-student-status" v-model="status" class="block w-full my-3">
+            <option value="all">{{ __('All students and applicants') }}</option>
+            <option value="applicants">{{ __('Applicants') }}</option>
+            <option value="enrolled">{{ __('Enrolled') }}</option>
+          </select>
           <Loader v-if="fetchingStudents" class="pb-0" />
 
           <FadeIn>
@@ -62,6 +68,7 @@ export default defineComponent({
   setup (props, { emit }) {
     const show = ref(false)
     const term = ref('')
+    const status = ref('all')
     const { students, search, fetchingStudents } = fetchesStudents()
     const modal = ref(null)
     const close = () => {
@@ -78,11 +85,12 @@ export default defineComponent({
       }
     }
     const runSearch = debounce(() => {
-      search({ s: term.value })
+      search({ s: term.value, status: status.value })
     }, 500)
 
     watchEffect(() => {
-      if (term.value) {
+      const selectedStatus = status.value
+      if (term.value || selectedStatus === 'applicants') {
         runSearch()
       } else {
         students.value = []
@@ -114,6 +122,7 @@ export default defineComponent({
       close,
       students,
       term,
+      status,
       selected,
       fetchingStudents,
     }

@@ -34,13 +34,6 @@ class SendNewInvoiceNotification implements ShouldQueue
     {
         $invoice = Invoice::findOrFail($this->invoiceUuid);
 
-        if (
-            ! $invoice->notify ||
-            now()->startOfMinute()->diffInMinutes($invoice->notify_at) <= 1
-        ) {
-            return;
-        }
-
-        // Send NewInvoice notification
+        app(\App\Services\PortalPublisher::class)->capture($invoice);
     }
 }

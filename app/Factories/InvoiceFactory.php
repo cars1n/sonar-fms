@@ -259,6 +259,12 @@ abstract class InvoiceFactory extends BaseImportFactory
             }
         });
 
+        if (config('services.crm_portal.enabled')) {
+            foreach (Invoice::whereIn('uuid', $this->invoices->pluck('uuid'))->get() as $invoice) {
+                app(\App\Services\PortalPublisher::class)->capture($invoice);
+            }
+        }
+
         $uuids = $this->invoices->map(function (array $invoice) {
             if ($invoice['notify'] && ! $this->asDraft) {
                 SendNewInvoiceNotification::dispatch($invoice['uuid'])

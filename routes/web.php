@@ -52,6 +52,7 @@ Route::middleware('tenant')->group(function () {
         });
 
     Route::middleware(['auth', 'has_school'])->group(function () {
+        Route::post('/invoices/{invoice}/portal-notification', \App\Http\Controllers\PortalNotificationController::class)->name('invoices.portal-notification');
         Route::get('/ping', \App\Http\Controllers\CheckAuthStatusController::class)
             ->name('auth.status');
 

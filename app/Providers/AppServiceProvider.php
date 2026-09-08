@@ -48,7 +48,7 @@ class AppServiceProvider extends ServiceProvider
     {
         JsonResource::withoutWrapping();
         Inertia::setRootView('layouts.app');
-        URL::forceScheme('https');
+        URL::forceScheme($this->app->isLocal() ? (parse_url(config('app.url'), PHP_URL_SCHEME) ?: 'http') : 'https');
 
         $currentTenant = function (): Tenant {
             /** @var Tenant|null $current */

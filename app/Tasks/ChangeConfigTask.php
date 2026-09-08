@@ -17,7 +17,9 @@ class ChangeConfigTask implements SwitchTenantTask
     {
         $this->originalUrl = config('app.url');
 
-        Config::set('app.url', "https://{$tenant->domain}");
+        Config::set('app.url', app()->isLocal()
+            ? request()->root()
+            : "https://{$tenant->domain}");
         Config::set('powerschool.server_address', $tenant->ps_url);
         Config::set('powerschool.client_id', $tenant->ps_client_id);
         Config::set('powerschool.client_secret', $tenant->ps_secret);

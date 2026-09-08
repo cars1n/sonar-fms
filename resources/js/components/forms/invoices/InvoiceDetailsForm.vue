@@ -68,15 +68,15 @@
         <HelpText>{{ __("This will adjust how the student's grade level appears on the generated invoice by year. For example, putting 1 will display a grade 6 student as grade 7. Negative numbers will reduce the grade level.") }}</HelpText>
       </InputWrap>
 
-<!--      <InputWrap class="md:col-span-6">-->
-<!--        <CheckboxWrapper>-->
-<!--          <Checkbox v-model:checked="localValue.notify" />-->
-<!--          <CheckboxText>{{ __('Queue notification') }}</CheckboxText>-->
-<!--        </CheckboxWrapper>-->
-<!--        <HelpText>-->
-<!--          {{ __("Having this option enabled will automatically queue an email to be sent notifying the appropriate parties of the available invoice. There is a 15-minute delay of sending the notification which allows you to make adjustments, cancel the notification, or delete the invoice all together. If this is not enabled, you may send a notification manually later.") }}-->
-<!--        </HelpText>-->
-<!--      </InputWrap>-->
+      <InputWrap class="md:col-span-6">
+        <CheckboxWrapper>
+          <Checkbox v-model:checked="localValue.notify" />
+          <CheckboxText>{{ __('Notify guardians') }}</CheckboxText>
+        </CheckboxWrapper>
+        <HelpText>
+          {{ __("Having this option enabled will automatically queue an email to be sent notifying the appropriate parties of the available invoice. There is a 15-minute delay of sending the notification which allows you to make adjustments, cancel the notification, or delete the invoice all together. If this is not enabled, you may send a notification manually later.") }}
+        </HelpText>
+      </InputWrap>
     </div>
   </Fieldset>
 </template>

@@ -4,6 +4,7 @@ namespace App\Http;
 
 use App\Http\Middleware\AllowsOidcLogins;
 use App\Http\Middleware\AllowsPasswordLogins;
+use App\Http\Middleware\AuthenticateCrmPortal;
 use App\Http\Middleware\CanInstall;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\HasSchoolSet;
@@ -101,5 +102,6 @@ class Kernel extends HttpKernel
         'not_void' => NotVoid::class,
         'receipt_layout' => NeedsReceiptLayout::class,
         'has_school' => HasSchoolSet::class,
+        'crm_portal' => AuthenticateCrmPortal::class,
     ];
 }

@@ -1,0 +1,50 @@
+services:
+  laravel.test:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: sonar-fms-local/app
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '${APP_PORT:-8080}:80'
+      - '${VITE_PORT:-5173}:5173'
+    environment:
+      WWWUSER: '${WWWUSER:-1000}'
+      LARAVEL_SAIL: 1
+      SUPERVISOR_PHP_COMMAND: '/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan serve --host=0.0.0.0 --port=80 --no-reload'
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: pgsql
+      DB_PORT: 5432
+      DB_DATABASE: fms
+      DB_USERNAME: sail
+      DB_PASSWORD: password
+      REDIS_HOST: redis
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+    volumes:
+      - '.:/var/www/html'
+    depends_on:
+      - pgsql
+      - redis
+      - mailpit
+  pgsql:
+    image: postgres:17-alpine
+    ports:
+      - '${FORWARD_DB_PORT:-5432}:5432'
+    environment:
+      POSTGRES_DB: fms
+      POSTGRES_USER: sail
+      POSTGRES_PASSWORD: password
+    volumes:
+      - sonar-pgsql17:/var/lib/postgresql/data
+  redis:
+    image: redis:alpine
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025'
+volumes:
+  sonar-pgsql17:
