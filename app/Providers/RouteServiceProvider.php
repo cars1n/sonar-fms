@@ -54,6 +54,11 @@ class RouteServiceProvider extends ServiceProvider
     protected function configureRateLimiting()
     {
         RateLimiter::for('api', function (Request $request) {
+            $token = (string) config('services.crm_portal.token');
+            if ($request->is('api/portal/*') && $token !== '' && hash_equals($token, (string) $request->bearerToken())) {
+                return Limit::perMinute(600)->by('crm-portal:'.$request->ip());
+            }
+
             return Limit::perMinute(60)->by(optional($request->user())->id ?: $request->ip());
         });
     }

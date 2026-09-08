@@ -29,6 +29,20 @@ class PortalApplicantIntegrationTest extends TestCase
         ]);
     }
 
+    public function test_only_authenticated_portal_requests_receive_the_integration_rate_limit(): void
+    {
+        $limiter = \Illuminate\Support\Facades\RateLimiter::limiter('api');
+        $request = \Illuminate\Http\Request::create('/api/portal/v2/events');
+        $this->assertSame(60, $limiter($request)->maxAttempts);
+        $request->headers->set('Authorization', 'Bearer incorrect');
+        $this->assertSame(60, $limiter($request)->maxAttempts);
+        $request->headers->set('Authorization', 'Bearer portal-secret');
+        $this->assertSame(600, $limiter($request)->maxAttempts);
+        $other = \Illuminate\Http\Request::create('/api/unrelated');
+        $other->headers->set('Authorization', 'Bearer portal-secret');
+        $this->assertSame(60, $limiter($other)->maxAttempts);
+    }
+
     public function test_applicant_can_be_upserted_without_sis_and_selected_for_invoicing(): void
     {
         $reference = (string) Str::uuid();
