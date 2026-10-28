@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Services\PortalPublisher;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class SchoolResource extends JsonResource
@@ -9,7 +11,7 @@ class SchoolResource extends JsonResource
     /**
      * Transform the resource into an array.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  Request  $request
      * @return array
      */
     public function toArray($request)
@@ -19,6 +21,7 @@ class SchoolResource extends JsonResource
             'name' => $this->name,
             'sis_id' => $this->sis_id,
             'active' => $this->active,
+            'guardian_notifications_enabled' => app(PortalPublisher::class)->enabledForSchool($this->resource),
             'timezone' => $this->timezone,
             'tax_rate' => $this->tax_rate,
             'tax_label' => $this->tax_label,

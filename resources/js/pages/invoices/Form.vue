@@ -202,7 +202,7 @@ export default {
       due_at: props.invoice.due_at
         ? dayjs(props.invoice.due_at).toDate()
         : null,
-      notify: props.invoice.notify ?? true,
+      notify: school.value.guardian_notifications_enabled && (props.invoice.notify ?? true),
       items: props.invoice.items || [],
       scholarships: props.invoice.scholarships || [],
       payment_schedules: props.invoice.payment_schedules || [],

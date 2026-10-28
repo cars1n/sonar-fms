@@ -68,7 +68,7 @@
         <HelpText>{{ __("This will adjust how the student's grade level appears on the generated invoice by year. For example, putting 1 will display a grade 6 student as grade 7. Negative numbers will reduce the grade level.") }}</HelpText>
       </InputWrap>
 
-      <InputWrap class="md:col-span-6">
+      <InputWrap v-if="$page.props.school.guardian_notifications_enabled" class="md:col-span-6">
         <CheckboxWrapper>
           <Checkbox v-model:checked="localValue.notify" />
           <CheckboxText>{{ __('Notify guardians') }}</CheckboxText>

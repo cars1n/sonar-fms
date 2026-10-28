@@ -13,6 +13,7 @@ class PortalNotificationController extends Controller
     {
         abort_unless($invoice->school_id === $request->school()->id, 404);
         abort_unless($invoice->published_at && ! $invoice->parent_uuid, 422);
+        abort_unless($publisher->enabledForSchool($invoice->school), 422, 'Guardian notifications are not enabled for this school.');
         if ($request->validated('action') === 'cancel') {
             $invoice->cancelNotification();
             $publisher->capture($invoice);

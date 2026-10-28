@@ -61,7 +61,7 @@
         </span>
       </template>
     </DescriptionItem>
-    <DescriptionItem>
+    <DescriptionItem v-if="$page.props.school.guardian_notifications_enabled">
       <template #dt>
         {{ __('Notification') }}
       </template>

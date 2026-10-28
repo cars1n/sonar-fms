@@ -81,7 +81,7 @@
         </span>
       </dd>
     </div>
-    <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+    <div v-if="$page.props.school.guardian_notifications_enabled" class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
       <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
         {{ __('Notification') }}
       </dt>

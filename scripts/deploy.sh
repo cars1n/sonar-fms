@@ -24,6 +24,7 @@ artisan() { sudo -n -u www-data /usr/bin/php8.5 "$release/artisan" "$@"; }
 cd "$release"
 sudo -n -u www-data /usr/bin/php8.5 -r 'require "vendor/autoload.php";'
 artisan package:discover --ansi
+artisan migrate:status --pending=1
 artisan config:cache
 artisan route:cache
 # Views use persistent storage, so warm them only after switching releases.

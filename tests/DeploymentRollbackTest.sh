@@ -39,7 +39,7 @@ for name in hostname sudo php8.5 systemctl sleep supervisorctl curl; do
 done
 
 revision=0123456789012345678901234567890123456789
-for failure in view:cache horizon:terminate none; do
+for failure in migrate:status view:cache horizon:terminate none; do
     case_dir="$scratch/${failure/:/_}"
     base="$case_dir/site"
     mkdir -p "$base/releases/previous" "$base/storage" "$case_dir/home" "$case_dir/payload/public"
@@ -63,8 +63,13 @@ for failure in view:cache horizon:terminate none; do
     else
         [[ $result == 23 ]]
         [[ $(readlink -f "$base/live") == "$base/releases/previous" ]]
-        [[ $(grep -c '^supervisorctl restart ' "$case_dir/calls.log") == 1 ]]
-        grep -q 'Deployment failed; restoring' "$case_dir/output.log"
+        if [[ $failure == migrate:status ]]; then
+            ! grep -q '^supervisorctl restart ' "$case_dir/calls.log"
+            ! grep -q 'Deployment failed; restoring' "$case_dir/output.log"
+        else
+            [[ $(grep -c '^supervisorctl restart ' "$case_dir/calls.log") == 1 ]]
+            grep -q 'Deployment failed; restoring' "$case_dir/output.log"
+        fi
     fi
     printf 'Deployment scenario passed: %s\n' "$failure"
 done

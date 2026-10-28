@@ -141,11 +141,11 @@ import Req from '@/components/forms/Req.vue'
 import InvoicePaymentSchedules from '@/components/forms/invoices/InvoicePaymentSchedules.vue'
 import Modal from '@/components/Modal.vue'
 import CombineInvoiceSummary from '@/components/CombineInvoiceSummary.vue'
-import isUndefined from 'lodash/isUndefined'
 import Error from '@/components/forms/Error.vue'
 import InputWrap from '@/components/forms/InputWrap.vue'
 import Label from '@/components/forms/Label.vue'
 import UserTypeahead from '@/components/forms/UserTypeahead.vue'
+import useSchool from '@/composition/useSchool.js'
 
 export default defineComponent({
   mixins: [PageProps],
@@ -199,6 +199,7 @@ export default defineComponent({
   },
 
   setup (props) {
+    const { school } = useSchool()
     const $route = inject('$route')
     const reviewing = ref(false)
     const isNew = computed(() => !props.invoice.uuid)
@@ -211,7 +212,7 @@ export default defineComponent({
       invoice_date: props.invoice.invoice_date ? new Date(props.invoice.invoice_date) : new Date(),
       available_at: props.invoice.available_at ? new Date(props.invoice.available_at) : null,
       due_at: props.invoice.due_at ? new Date(props.invoice.due_at) : null,
-      notify: isUndefined(props.invoice.notify) ? true : props.invoice.notify,
+      notify: school.value.guardian_notifications_enabled && (props.invoice.notify ?? true),
       payment_schedules: props.invoice.payment_schedules || [],
     })
     const removeInvoice = invoice => {

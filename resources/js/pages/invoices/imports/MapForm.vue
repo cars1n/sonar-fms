@@ -148,7 +148,7 @@
             </MapField>
           </InputWrap>
 
-          <InputWrap>
+          <InputWrap v-if="school.guardian_notifications_enabled">
             <CheckboxWrapper>
               <Checkbox v-model:checked="form.notify" />
               <CheckboxText>{{ __('Queue notification') }}</CheckboxText>
@@ -304,6 +304,7 @@ export default {
   emits: ['update:invoiceForm'],
 
   setup (props, { emit }) {
+    const { school } = useSchool()
     const $route = inject('$route')
     const { terms } = fetchesTerms()
     const reviewing = ref(false)
@@ -320,7 +321,7 @@ export default {
       available_at: props.invoiceImport.mapping?.available_at || addMapFieldValue(),
       due_at: props.invoiceImport.mapping?.due_at || addMapFieldValue(),
       grade_level_adjustment: props.invoiceImport.mapping?.grade_level_adjustment || addMapFieldValue(0),
-      notify: props.invoiceImport.mapping?.notify ?? true,
+      notify: school.value.guardian_notifications_enabled && (props.invoiceImport.mapping?.notify ?? true),
       items: props.invoiceImport.mapping?.items || [],
       scholarships: props.invoiceImport.mapping?.scholarships || [],
       payment_schedules: props.invoiceImport.mapping?.payment_schedules || [],
@@ -334,8 +335,6 @@ export default {
     form.errors = props.errors
     // Emit the initial value
     emit('update:invoiceForm', form)
-
-    const { school } = useSchool()
 
     const { timezone, displayDate } = displaysDate()
     const { displayCurrency } = displaysCurrency()

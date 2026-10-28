@@ -62,7 +62,7 @@ class PortalStudentIdentity
 
     public function reconcile(School $school, string $reference, string $duplicateUuid): Student
     {
-        $student = DB::transaction(function () use ($school, $reference, $duplicateUuid): Student {
+        [$student, $duplicate, $guardians] = DB::transaction(function () use ($school, $reference, $duplicateUuid): array {
             School::whereKey($school->id)->lockForUpdate()->firstOrFail();
             $canonical = $school->students()->where('crm_reference', $reference)->firstOrFail();
             $duplicate = $school->students()->whereKey($duplicateUuid)->firstOrFail();
@@ -73,16 +73,19 @@ class PortalStudentIdentity
             $canonical->student_number = $duplicate->student_number;
             $canonical->save();
             $school->invoices()->where('student_uuid', $duplicate->uuid)->update(['student_uuid' => $canonical->uuid]);
-            $canonical->users()->syncWithoutDetaching($duplicate->users()->pluck('users.uuid')->all());
+            $guardians = $duplicate->users()->get();
+            $canonical->users()->syncWithoutDetaching($guardians->modelKeys());
+            $duplicate->users()->detach();
             $duplicate->update(['sis_id' => null, 'merged_into_uuid' => $canonical->uuid]);
             $canonical->setAccountBalance()->setRevenue()->save();
             activity()->on($canonical)->withProperties(['archived_student_uuid' => $duplicateUuid])
                 ->log('Confirmed CRM student identity reconciliation; invoices retained.');
 
-            return $canonical;
+            return [$canonical, $duplicate, $guardians];
         });
 
         $student->grantGuardianViewPermissions($student->users()->get());
+        $duplicate->revokeGuardianViewPermissions($guardians);
 
         return $student;
     }

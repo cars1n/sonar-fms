@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Resources\SchoolResource;
 use App\Models\Invoice;
 use App\Models\PortalInvoiceState;
 use App\Models\Student;
@@ -109,6 +110,28 @@ class PortalApplicantIntegrationTest extends TestCase
         $this->assertSame($applicant->uuid, $duplicate->fresh()->merged_into_uuid);
         $this->assertNotNull($duplicate->fresh());
         $this->assertTrue($guardian->fresh()->can('view', $applicant->fresh()));
+        $this->assertFalse($guardian->fresh()->can('view', $duplicate->fresh()));
+        $this->assertFalse($guardian->students()->whereKey($duplicate->uuid)->exists());
+    }
+
+    public function test_notification_controls_and_resends_require_an_enabled_portal_school(): void
+    {
+        $invoice = Invoice::factory()->create(['user_uuid' => $this->user->uuid, 'notify' => false]);
+        $this->assignPermission('update', $invoice);
+        $path = '/invoices/'.$invoice->uuid.'/portal-notification';
+        $this->postJson($path, ['action' => 'resend'])->assertUnprocessable();
+        $this->assertFalse($invoice->fresh()->notify);
+        $this->assertFalse((new SchoolResource($this->school))->resolve()['guardian_notifications_enabled']);
+
+        config(['services.crm_portal.enabled' => true, 'services.crm_portal.school_sis_ids' => [(int) $this->school->sis_id + 1]]);
+        $this->postJson($path, ['action' => 'resend'])->assertUnprocessable();
+        $this->assertFalse($invoice->fresh()->notify);
+
+        config(['services.crm_portal.school_sis_ids' => [(int) $this->school->sis_id]]);
+        $this->assertTrue((new SchoolResource($this->school))->resolve()['guardian_notifications_enabled']);
+        $this->post($path, ['action' => 'resend'])->assertRedirect();
+        $this->assertTrue($invoice->fresh()->notify);
+        $this->assertNotNull(PortalInvoiceState::find($invoice->uuid)->request_id);
     }
 
     public function test_sis_import_resolves_crm_identity_before_creating_a_student(): void
