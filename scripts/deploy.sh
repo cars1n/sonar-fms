@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 revision=${1:?A full Git revision is required}
 [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || exit 1
@@ -30,11 +30,12 @@ artisan route:cache
 artisan storage:link
 
 rollback() {
+    trap - ERR
     echo "Deployment failed; restoring $previous"
     sudo -n ln -s "$previous" "$base/live.rollback"
     sudo -n mv -Tf "$base/live.rollback" "$base/live"
     sudo -n systemctl reload php8.5-fpm
-    sudo -n supervisorctl restart sonar-fms-worker
+    sudo -n supervisorctl restart 'sonar-fms-worker:*'
 }
 trap rollback ERR
 sudo -n ln -s "$release" "$base/live.next"
@@ -43,7 +44,7 @@ sudo -n systemctl reload php8.5-fpm
 artisan view:cache
 artisan horizon:terminate
 sleep 3
-sudo -n supervisorctl status sonar-fms-worker | grep RUNNING
+sudo -n supervisorctl status 'sonar-fms-worker:*' | grep RUNNING
 curl -kfsS --resolve invoices.lifepluslearning.com:443:127.0.0.1 https://invoices.lifepluslearning.com/login -o /dev/null
 test "$(curl -kfsS --resolve invoices.lifepluslearning.com:443:127.0.0.1 https://invoices.lifepluslearning.com/release-revision.txt)" = "$revision"
 trap - ERR

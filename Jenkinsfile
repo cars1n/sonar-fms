@@ -46,6 +46,7 @@ pipeline {
                         docker.image(env.PHP_IMAGE).inside("--link ${db.id}:pgsql") {
                             withEnv(['DB_HOST=pgsql', 'DB_PORT=5432', 'DB_USERNAME=sail', 'DB_PASSWORD=testing']) {
                                 sh 'cp .env.testing.example .env.testing'
+                                sh 'bash tests/DeploymentRollbackTest.sh'
                                 sh 'php scripts/wait-for-test-db.php'
                                 sh 'vendor/bin/phpunit --log-junit test-results.xml'
                             }
