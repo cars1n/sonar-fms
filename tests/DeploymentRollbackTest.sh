@@ -26,12 +26,15 @@ case "$name" in
     supervisorctl)
         case "${1:-}" in
             pid)
-                [[ ${2:-} == sonar-fms-worker ]] || exit 3
+                expected_process=sonar-fms-worker:sonar-fms-worker_00
+                [[ ${DEPLOY_TEST_FAILURE:-} != worker:unqualified ]] || expected_process=sonar-fms-worker
+                [[ ${2:-} == "$expected_process" ]] || exit 3
                 state="$DEPLOY_TEST_CALLS.pid"
                 count=0
                 [[ ! -f $state ]] || read -r count < "$state"
                 echo "$((count + 1))" > "$state"
-                if [[ $count == 0 || ${DEPLOY_TEST_FAILURE:-} == worker:stale ]]; then
+                if [[ $count == 0 || ${DEPLOY_TEST_FAILURE:-} == worker:stale ]] ||
+                    [[ ${DEPLOY_TEST_FAILURE:-} == worker:draining && $count -lt 3 ]]; then
                     echo 41
                 else
                     echo 42
@@ -43,14 +46,16 @@ case "$name" in
                 count=0
                 [[ ! -f $state ]] || read -r count < "$state"
                 echo "$((count + 1))" > "$state"
-                if [[ ${DEPLOY_TEST_FAILURE:-} == worker:unhealthy ]]; then
+                if [[ ${DEPLOY_TEST_FAILURE:-} == worker:unhealthy && $count -gt 0 ]]; then
                     echo 'sonar-fms-worker BACKOFF exited too quickly'
                     exit 3
-                elif [[ ${DEPLOY_TEST_FAILURE:-} == worker:starting && $count -lt 2 ]]; then
+                elif [[ ${DEPLOY_TEST_FAILURE:-} == worker:starting && $count -gt 0 && $count -lt 3 ]]; then
                     echo 'sonar-fms-worker STARTING'
                     exit 3
                 fi
-                echo 'sonar-fms-worker RUNNING pid 42'
+                process=sonar-fms-worker:sonar-fms-worker_00
+                [[ ${DEPLOY_TEST_FAILURE:-} != worker:unqualified ]] || process=sonar-fms-worker
+                echo "$process RUNNING pid 42"
                 ;;
             restart)
                 [[ ${2:-} == 'sonar-fms-worker:*' ]] || exit 3
@@ -71,7 +76,7 @@ for name in hostname sudo php8.5 systemctl sleep supervisorctl curl; do
 done
 
 revision=0123456789012345678901234567890123456789
-for failure in migrate:status view:cache horizon:terminate worker:stale worker:unhealthy worker:starting none; do
+for failure in migrate:status view:cache horizon:terminate worker:stale worker:unhealthy worker:starting worker:draining worker:unqualified none; do
     case_dir="$scratch/${failure/:/_}"
     base="$case_dir/site"
     mkdir -p "$base/releases/previous" "$base/storage" "$case_dir/home" "$case_dir/payload/public"
@@ -79,15 +84,16 @@ for failure in migrate:status view:cache horizon:terminate worker:stale worker:u
     ln -s "$base/releases/previous" "$base/live"
     printf '%s\n' "$revision" > "$case_dir/payload/public/release-revision.txt"
     tar -czf "$case_dir/home/site.tar.gz" -C "$case_dir/payload" .
-    # Keep the actual deployment control flow; redirect only fixed host paths.
+    # Keep deployment control flow; redirect host paths and shorten timeout iterations.
     sed -e "s|^base=/var/www/invoices.ldiglobal.org$|base='$base'|" \
         -e "s|/usr/bin/php8.5|$bin/php8.5|g" \
+        -e 's/attempt < 1850/attempt < 3/' \
         "$repo/scripts/deploy.sh" > "$case_dir/deploy.sh"
     result=0
     HOME="$case_dir/home" PATH="$bin:$PATH" DEPLOY_TEST_CALLS="$case_dir/calls.log" \
         DEPLOY_TEST_FAILURE="$failure" DEPLOY_TEST_REVISION="$revision" \
         bash "$case_dir/deploy.sh" "$revision" > "$case_dir/output.log" 2>&1 || result=$?
-    if [[ $failure == none || $failure == worker:starting ]]; then
+    if [[ $failure == none || $failure == worker:starting || $failure == worker:draining || $failure == worker:unqualified ]]; then
         [[ $result == 0 ]]
         [[ $(readlink -f "$base/live") != "$base/releases/previous" ]]
         [[ $(cat "$base/live/public/release-revision.txt") == "$revision" ]]

@@ -43,20 +43,23 @@ sudo -n ln -s "$release" "$base/live.next"
 sudo -n mv -Tf "$base/live.next" "$base/live"
 sudo -n systemctl reload php8.5-fpm
 artisan view:cache
-previous_worker_pid=$(sudo -n supervisorctl pid sonar-fms-worker)
+worker_status=$(sudo -n supervisorctl status 'sonar-fms-worker:*')
+worker_process=${worker_status%%[[:space:]]*}
+previous_worker_pid=$(sudo -n supervisorctl pid "$worker_process")
 artisan horizon:terminate
 wait_for_worker() {
     local status pid attempt
-    for ((attempt = 0; attempt < 45; attempt++)); do
+    # SyncSchool can run for 3600 seconds; allow it to drain before replacing Horizon.
+    for ((attempt = 0; attempt < 1850; attempt++)); do
         status=$(sudo -n supervisorctl status 'sonar-fms-worker:*') || status=${status:-unavailable}
-        pid=$(sudo -n supervisorctl pid sonar-fms-worker) || pid=0
+        pid=$(sudo -n supervisorctl pid "$worker_process") || pid=0
         if [[ $status == *' RUNNING '* && $pid =~ ^[1-9][0-9]*$ && $pid != "$previous_worker_pid" ]]; then
             printf '%s\n' "$status"
             return 0
         fi
         sleep 2
     done
-    printf 'Horizon did not restart within 90 seconds: %s (PID %s, previous %s)\n' "$status" "$pid" "$previous_worker_pid" >&2
+    printf 'Horizon did not restart within 3700 seconds: %s (PID %s, previous %s)\n' "$status" "$pid" "$previous_worker_pid" >&2
     return 1
 }
 wait_for_worker

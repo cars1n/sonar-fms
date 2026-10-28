@@ -10,7 +10,8 @@ pipeline {
         disableConcurrentBuilds()
         skipDefaultCheckout(true)
         timestamps()
-        timeout(time: 60, unit: 'MINUTES')
+        // Allow a supported one-hour school sync to drain during Horizon restart.
+        timeout(time: 90, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '10'))
     }
     triggers { pollSCM('H/5 * * * *') }
