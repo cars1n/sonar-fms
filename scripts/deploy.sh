@@ -43,9 +43,23 @@ sudo -n ln -s "$release" "$base/live.next"
 sudo -n mv -Tf "$base/live.next" "$base/live"
 sudo -n systemctl reload php8.5-fpm
 artisan view:cache
+previous_worker_pid=$(sudo -n supervisorctl pid sonar-fms-worker)
 artisan horizon:terminate
-sleep 3
-sudo -n supervisorctl status 'sonar-fms-worker:*' | grep RUNNING
+wait_for_worker() {
+    local status pid attempt
+    for ((attempt = 0; attempt < 45; attempt++)); do
+        status=$(sudo -n supervisorctl status 'sonar-fms-worker:*') || status=${status:-unavailable}
+        pid=$(sudo -n supervisorctl pid sonar-fms-worker) || pid=0
+        if [[ $status == *' RUNNING '* && $pid =~ ^[1-9][0-9]*$ && $pid != "$previous_worker_pid" ]]; then
+            printf '%s\n' "$status"
+            return 0
+        fi
+        sleep 2
+    done
+    printf 'Horizon did not restart within 90 seconds: %s (PID %s, previous %s)\n' "$status" "$pid" "$previous_worker_pid" >&2
+    return 1
+}
+wait_for_worker
 curl -kfsS --resolve invoices.lifepluslearning.com:443:127.0.0.1 https://invoices.lifepluslearning.com/login -o /dev/null
 test "$(curl -kfsS --resolve invoices.lifepluslearning.com:443:127.0.0.1 https://invoices.lifepluslearning.com/release-revision.txt)" = "$revision"
 trap - ERR

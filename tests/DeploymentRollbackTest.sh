@@ -24,8 +24,40 @@ case "$name" in
         ;;
     systemctl|sleep) ;;
     supervisorctl)
-        [[ ${2:-} == 'sonar-fms-worker:*' ]] || exit 3
-        echo 'sonar-fms-worker:sonar-fms-worker_00 RUNNING pid 42'
+        case "${1:-}" in
+            pid)
+                [[ ${2:-} == sonar-fms-worker ]] || exit 3
+                state="$DEPLOY_TEST_CALLS.pid"
+                count=0
+                [[ ! -f $state ]] || read -r count < "$state"
+                echo "$((count + 1))" > "$state"
+                if [[ $count == 0 || ${DEPLOY_TEST_FAILURE:-} == worker:stale ]]; then
+                    echo 41
+                else
+                    echo 42
+                fi
+                ;;
+            status)
+                [[ ${2:-} == 'sonar-fms-worker:*' ]] || exit 3
+                state="$DEPLOY_TEST_CALLS.status"
+                count=0
+                [[ ! -f $state ]] || read -r count < "$state"
+                echo "$((count + 1))" > "$state"
+                if [[ ${DEPLOY_TEST_FAILURE:-} == worker:unhealthy ]]; then
+                    echo 'sonar-fms-worker BACKOFF exited too quickly'
+                    exit 3
+                elif [[ ${DEPLOY_TEST_FAILURE:-} == worker:starting && $count -lt 2 ]]; then
+                    echo 'sonar-fms-worker STARTING'
+                    exit 3
+                fi
+                echo 'sonar-fms-worker RUNNING pid 42'
+                ;;
+            restart)
+                [[ ${2:-} == 'sonar-fms-worker:*' ]] || exit 3
+                echo 'sonar-fms-worker started'
+                ;;
+            *) exit 3 ;;
+        esac
         ;;
     curl)
         if [[ $* == *release-revision.txt* ]]; then echo "$DEPLOY_TEST_REVISION"; fi
@@ -39,7 +71,7 @@ for name in hostname sudo php8.5 systemctl sleep supervisorctl curl; do
 done
 
 revision=0123456789012345678901234567890123456789
-for failure in migrate:status view:cache horizon:terminate none; do
+for failure in migrate:status view:cache horizon:terminate worker:stale worker:unhealthy worker:starting none; do
     case_dir="$scratch/${failure/:/_}"
     base="$case_dir/site"
     mkdir -p "$base/releases/previous" "$base/storage" "$case_dir/home" "$case_dir/payload/public"
@@ -55,13 +87,15 @@ for failure in migrate:status view:cache horizon:terminate none; do
     HOME="$case_dir/home" PATH="$bin:$PATH" DEPLOY_TEST_CALLS="$case_dir/calls.log" \
         DEPLOY_TEST_FAILURE="$failure" DEPLOY_TEST_REVISION="$revision" \
         bash "$case_dir/deploy.sh" "$revision" > "$case_dir/output.log" 2>&1 || result=$?
-    if [[ $failure == none ]]; then
+    if [[ $failure == none || $failure == worker:starting ]]; then
         [[ $result == 0 ]]
         [[ $(readlink -f "$base/live") != "$base/releases/previous" ]]
         [[ $(cat "$base/live/public/release-revision.txt") == "$revision" ]]
         ! grep -q 'Deployment failed' "$case_dir/output.log"
     else
-        [[ $result == 23 ]]
+        expected_result=23
+        [[ $failure != worker:* ]] || expected_result=1
+        [[ $result == "$expected_result" ]]
         [[ $(readlink -f "$base/live") == "$base/releases/previous" ]]
         if [[ $failure == migrate:status ]]; then
             ! grep -q '^supervisorctl restart ' "$case_dir/calls.log"
