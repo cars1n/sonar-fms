@@ -191,6 +191,10 @@ class Student extends Model implements Exportable, Searchable
             return [];
         }
         $response = PowerSchool::get("/ws/contacts/student/{$this->sis_id}");
+        $contacts = $response->collect();
+        if ($contacts->contains(fn ($contact) => ! is_array($contact) || ! isset($contact['contactId']))) {
+            throw new \UnexpectedValueException('PowerSchool returned an incomplete contact identity.');
+        }
 
         if (! $schools) {
             $schools = School::select(['id', 'school_number'])
@@ -198,7 +202,7 @@ class Student extends Model implements Exportable, Searchable
                 ->keyBy('school_number');
         }
 
-        $users = $response->collect()
+        $users = $contacts
             ->reduce(function ($users, $contact) use ($schools) {
                 if (empty($contact['emails'])) {
                     return $users;
@@ -240,7 +244,17 @@ class Student extends Model implements Exportable, Searchable
                 return $users;
             }, []);
 
-        $this->users()->syncWithoutDetaching($users);
+        // The per-student endpoint confirms removal. Missing bulk-query rows
+        // alone cannot establish that a guardian relationship was revoked.
+        $removed = $this->users()->whereNotNull('contact_id')
+            ->whereNotIn('contact_id', $contacts->pluck('contactId'))
+            ->get();
+        $this->revokeGuardianViewPermissions($removed);
+        DB::transaction(function () use ($users, $removed) {
+            $this->users()->syncWithoutDetaching($users);
+            $this->users()->detach($removed->modelKeys());
+        });
+        $this->unsetRelation('users');
         $this->grantGuardianViewPermissions(
             User::whereIn('uuid', array_keys($users))->get()
         );
@@ -254,15 +268,43 @@ class Student extends Model implements Exportable, Searchable
      */
     public function grantGuardianViewPermissions(Collection $guardians): void
     {
+        $this->changeGuardianViewPermissions($guardians, true);
+    }
+
+    public function revokeGuardianViewPermissions(Collection $guardians): void
+    {
+        $this->changeGuardianViewPermissions($guardians, false);
+    }
+
+    protected function changeGuardianViewPermissions(Collection $guardians, bool $grant): void
+    {
         $originalScope = \Bouncer::scope()->get();
+        $schoolScopes = DB::table('school_user')->whereIn('user_uuid', $guardians->pluck('uuid'))
+            ->pluck('school_id')->merge([$originalScope, $this->school_id])
+            ->filter(fn ($scope) => $scope !== null)->unique();
 
         try {
             \Bouncer::scope()->remove();
 
-            $guardians->each(function (User $guardian) {
-                $guardian->allow('view', $this);
+            $guardians->each(function (User $guardian) use ($grant) {
+                if ($grant) {
+                    $guardian->allow('view', $this);
+                } else {
+                    $guardian->disallow('view', $this);
+                }
                 \Bouncer::refreshFor($guardian);
             });
+
+            // Global grants are also included in each school's cached abilities.
+            foreach ($schoolScopes as $scope) {
+                \Bouncer::scope()->to($scope);
+                $guardians->each(function (User $guardian) use ($grant) {
+                    if (! $grant) {
+                        $guardian->disallow('view', $this);
+                    }
+                    \Bouncer::refreshFor($guardian);
+                });
+            }
         } finally {
             if ($originalScope === null) {
                 \Bouncer::scope()->remove();

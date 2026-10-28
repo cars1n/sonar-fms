@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\School;
 use App\Models\Student;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class PortalStudentIdentity
 {
@@ -24,7 +26,7 @@ class PortalStudentIdentity
                 'enrolled' => false, 'sis_id' => null,
             ]);
             if (! $student->sis_id) {
-                $student->fill(\Illuminate\Support\Arr::only($data, ['first_name', 'last_name', 'grade_level']));
+                $student->fill(Arr::only($data, ['first_name', 'last_name', 'grade_level']));
             }
             $student->crm_reference = $data['crm_reference'];
             $student->application_reference = $data['application_reference'] ?? null;
@@ -45,7 +47,7 @@ class PortalStudentIdentity
                 if (! $url || ! config('services.crm_portal.webhook_secret')) {
                     throw new \RuntimeException('Configure the CRM identity endpoint before importing new PowerSchool students.');
                 }
-                $identity = \Illuminate\Support\Facades\Http::withToken(config('services.crm_portal.webhook_secret'))
+                $identity = Http::withToken(config('services.crm_portal.webhook_secret'))
                     ->connectTimeout(3)->timeout(15)->get($url, ['school_sis_id' => $school->sis_id, 'sis_id' => $sisId])->throw()->json('data');
                 if ($identity) {
                     $student = $this->upsert($school, $attributes + ['sis_id' => $sisId, 'crm_reference' => $identity['crm_reference']]);
@@ -60,7 +62,7 @@ class PortalStudentIdentity
 
     public function reconcile(School $school, string $reference, string $duplicateUuid): Student
     {
-        return DB::transaction(function () use ($school, $reference, $duplicateUuid): Student {
+        $student = DB::transaction(function () use ($school, $reference, $duplicateUuid): Student {
             School::whereKey($school->id)->lockForUpdate()->firstOrFail();
             $canonical = $school->students()->where('crm_reference', $reference)->firstOrFail();
             $duplicate = $school->students()->whereKey($duplicateUuid)->firstOrFail();
@@ -79,5 +81,9 @@ class PortalStudentIdentity
 
             return $canonical;
         });
+
+        $student->grantGuardianViewPermissions($student->users()->get());
+
+        return $student;
     }
 }

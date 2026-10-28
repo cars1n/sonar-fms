@@ -2,21 +2,23 @@
 
 namespace App\Services;
 
+use App\Http\Resources\PortalInvoiceResource;
 use App\Models\Invoice;
 use App\Models\PortalEvent;
 use App\Models\PortalInvoiceState;
+use App\Models\School;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class PortalPublisher
 {
-    public function enabledForSchool(\App\Models\School $school): bool
+    public function enabledForSchool(School $school): bool
     {
         return config('services.crm_portal.enabled') && $this->configuredForSchool($school);
     }
 
-    public function configuredForSchool(\App\Models\School $school): bool
+    public function configuredForSchool(School $school): bool
     {
         return $school->tenant_id === config('services.crm_portal.tenant_id')
             && in_array((int) $school->sis_id, config('services.crm_portal.school_sis_ids', []), true);
@@ -27,11 +29,12 @@ class PortalPublisher
         $invoice = $invoice->fresh();
         $invoice->load(['school', 'student', 'children.student', 'currency', 'invoiceItems', 'invoiceScholarships', 'invoicePaymentSchedules.invoicePaymentTerms', 'invoicePayments',
             'children.currency', 'children.invoiceItems', 'children.invoiceScholarships', 'children.invoicePaymentSchedules.invoicePaymentTerms', 'children.invoicePayments', 'students', 'children.students']);
-        $data = (new \App\Http\Resources\PortalInvoiceResource($invoice))->resolve();
+        $data = (new PortalInvoiceResource($invoice))->resolve();
         $revision = hash('sha256', json_encode([
             'portal' => $data,
             'invoice' => $invoice->getRawOriginal(),
             'children' => $invoice->children->map->getRawOriginal()->all(),
+            'school_rendering' => $invoice->school->only(['timezone', 'collect_tax', 'include_draft_stamp']),
             'layout' => $invoice->school->getDefaultInvoiceLayout()->getAttributes(),
             'payment_methods' => $invoice->school->paymentMethods()->showOnInvoice()->orderBy('id')->get()->map->getRawOriginal()->all(),
         ], JSON_THROW_ON_ERROR));

@@ -4,11 +4,13 @@ namespace App\SisProviders;
 
 use App\Events\SchoolSyncComplete;
 use App\Factories\UuidFactory;
+use App\Jobs\SyncStudentContacts;
 use App\Models\Course;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\PortalStudentIdentity;
 use GrantHolle\PowerSchool\Api\RequestBuilder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -198,7 +200,7 @@ class PowerSchoolProvider implements SisProvider
             ->expansions('contact_info,school_enrollment,initial_enrollment');
         while ($results = $builder->paginate()) {
             foreach ($results as $student) {
-                app(\App\Services\PortalStudentIdentity::class)->fromSis($school, (int) $student['id'], $this->getStudentAttributes($student));
+                app(PortalStudentIdentity::class)->fromSis($school, (int) $student['id'], $this->getStudentAttributes($student));
             }
         }
     }
@@ -220,7 +222,7 @@ class PowerSchoolProvider implements SisProvider
 
         $school = $student ? $student->school : School::where('sis_id', $response->school_enrollment->school_id)->first();
         if ($school) {
-            app(\App\Services\PortalStudentIdentity::class)->fromSis($school, (int) $id, $attributes);
+            app(PortalStudentIdentity::class)->fromSis($school, (int) $id, $attributes);
         }
     }
 
@@ -432,12 +434,20 @@ class PowerSchoolProvider implements SisProvider
         // every relationship retained at this school, not only those present
         // in the current response. This is intentionally outside the database
         // transaction because Bouncer also invalidates its external cache.
+        $returnedRelations = collect($studentUsers)->groupBy('student_uuid')
+            ->map(fn (Collection $relations) => $relations->pluck('user_uuid'));
         $school->students()
-            ->select('students.uuid')
+            ->select(['students.uuid', 'students.sis_id', 'students.merged_into_uuid', 'students.school_id'])
             ->with('users')
-            ->chunk(100, function (Collection $students) {
-                $students->each(function (Student $student) {
+            ->chunk(100, function (Collection $students) use ($returnedRelations) {
+                $students->each(function (Student $student) use ($returnedRelations) {
                     $student->grantGuardianViewPermissions($student->users);
+                    $returned = $returnedRelations->get($student->uuid, collect());
+                    if ($student->sis_id && ! $student->merged_into_uuid && $student->users->contains(
+                        fn (User $guardian) => $guardian->contact_id && ! $returned->contains($guardian->uuid)
+                    )) {
+                        SyncStudentContacts::dispatch($student)->afterCommit();
+                    }
                 });
             });
     }

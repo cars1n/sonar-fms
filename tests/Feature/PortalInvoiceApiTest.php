@@ -17,7 +17,29 @@ class PortalInvoiceApiTest extends TestCase
     {
         parent::setUp();
 
-        config(['services.crm_portal.token' => 'portal-secret']);
+        config([
+            'services.crm_portal.token' => 'portal-secret',
+            'services.crm_portal.tenant_id' => $this->tenant->id,
+            'services.crm_portal.school_sis_ids' => [(int) $this->school->sis_id],
+        ]);
+    }
+
+    public function test_v1_list_detail_and_pdf_enforce_tenant_and_school_scope(): void
+    {
+        $student = $this->createStudent(['sis_id' => 1001]);
+        $invoice = Invoice::factory()->create(['user_uuid' => $this->user->uuid, 'student_uuid' => $student->uuid]);
+        $query = '?school_sis_id='.$this->school->sis_id.'&student_sis_ids[]=1001';
+        $paths = ['/api/portal/v1/invoices', '/api/portal/v1/invoices/'.$invoice->uuid, '/api/portal/v1/invoices/'.$invoice->uuid.'/pdf'];
+
+        config(['services.crm_portal.school_sis_ids' => [(int) $this->school->sis_id + 1]]);
+        foreach ($paths as $path) {
+            $this->withToken('portal-secret')->getJson($path.$query)->assertForbidden();
+        }
+
+        config(['services.crm_portal.school_sis_ids' => [(int) $this->school->sis_id], 'services.crm_portal.tenant_id' => $this->tenant->id + 1]);
+        foreach ($paths as $path) {
+            $this->withToken('portal-secret')->getJson($path.$query)->assertForbidden();
+        }
     }
 
     public function test_portal_invoice_api_requires_the_integration_token(): void

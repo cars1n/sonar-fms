@@ -3,9 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Invoice;
+use App\Models\PortalInvoiceState;
+use App\Models\Student;
+use App\Models\Tenant;
+use App\Providers\AppServiceProvider;
 use App\Services\PortalPublisher;
 use App\Services\PortalStudentIdentity;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -21,7 +27,7 @@ class PortalApplicantIntegrationTest extends TestCase
         Http::preventStrayRequests();
     }
 
-    private function applicant(): \App\Models\Student
+    private function applicant(): Student
     {
         return app(PortalStudentIdentity::class)->upsert($this->school, [
             'crm_reference' => (string) Str::uuid(), 'sis_id' => null,
@@ -31,14 +37,14 @@ class PortalApplicantIntegrationTest extends TestCase
 
     public function test_only_authenticated_portal_requests_receive_the_integration_rate_limit(): void
     {
-        $limiter = \Illuminate\Support\Facades\RateLimiter::limiter('api');
-        $request = \Illuminate\Http\Request::create('/api/portal/v2/events');
+        $limiter = RateLimiter::limiter('api');
+        $request = Request::create('/api/portal/v2/events');
         $this->assertSame(60, $limiter($request)->maxAttempts);
         $request->headers->set('Authorization', 'Bearer incorrect');
         $this->assertSame(60, $limiter($request)->maxAttempts);
         $request->headers->set('Authorization', 'Bearer portal-secret');
         $this->assertSame(600, $limiter($request)->maxAttempts);
-        $other = \Illuminate\Http\Request::create('/api/unrelated');
+        $other = Request::create('/api/unrelated');
         $other->headers->set('Authorization', 'Bearer portal-secret');
         $this->assertSame(60, $limiter($other)->maxAttempts);
     }
@@ -59,9 +65,9 @@ class PortalApplicantIntegrationTest extends TestCase
     {
         $this->app->detectEnvironment(fn () => 'local');
         config(['app.url' => 'http://localhost:20167']);
-        (new \App\Providers\AppServiceProvider($this->app))->boot();
-        \App\Models\Tenant::forgetCurrent();
-        $this->app->instance('request', \Illuminate\Http\Request::create('http://'.$this->tenant->domain.':20167/students'));
+        (new AppServiceProvider($this->app))->boot();
+        Tenant::forgetCurrent();
+        $this->app->instance('request', Request::create('http://'.$this->tenant->domain.':20167/students'));
         $this->tenant->makeCurrent();
         $this->assertSame('http://'.$this->tenant->domain.':20167/login', route('login'));
     }
@@ -87,6 +93,10 @@ class PortalApplicantIntegrationTest extends TestCase
     {
         $applicant = $this->applicant();
         $duplicate = $this->createStudent(['sis_id' => 990003]);
+        $guardian = $this->createUser(['contact_id' => 990003]);
+        $duplicate->users()->attach($guardian);
+        $duplicate->grantGuardianViewPermissions(collect([$guardian]));
+        $this->assertFalse($guardian->can('view', $applicant));
         $first = Invoice::factory()->create(['user_uuid' => $this->user->uuid, 'student_uuid' => $applicant->uuid]);
         $second = Invoice::factory()->create(['user_uuid' => $this->user->uuid, 'student_uuid' => $duplicate->uuid]);
         $this->withToken('portal-secret')->putJson('/api/portal/v2/students/'.$applicant->crm_reference, [
@@ -98,6 +108,7 @@ class PortalApplicantIntegrationTest extends TestCase
         $this->assertSame($applicant->uuid, $second->fresh()->student_uuid);
         $this->assertSame($applicant->uuid, $duplicate->fresh()->merged_into_uuid);
         $this->assertNotNull($duplicate->fresh());
+        $this->assertTrue($guardian->fresh()->can('view', $applicant->fresh()));
     }
 
     public function test_sis_import_resolves_crm_identity_before_creating_a_student(): void
@@ -180,6 +191,16 @@ class PortalApplicantIntegrationTest extends TestCase
         $invoice->updateQuietly(['grade_level_adjustment' => 1]);
         $this->assertNotSame($revision, $publisher->snapshot($invoice)['revision']);
         $this->assertNotSame($invoice->generatePdfPath(), $invoice->generatePdfPath());
+
+        foreach ([
+            'timezone' => $this->school->timezone === 'UTC' ? 'America/New_York' : 'UTC',
+            'collect_tax' => ! $this->school->collect_tax,
+            'include_draft_stamp' => ! $this->school->include_draft_stamp,
+        ] as $setting => $value) {
+            $revision = $publisher->snapshot($invoice)['revision'];
+            $this->school->updateQuietly([$setting => $value]);
+            $this->assertNotSame($revision, $publisher->snapshot($invoice)['revision'], $setting);
+        }
     }
 
     public function test_v2_rejects_wrong_school_and_tenant_scope(): void
@@ -212,7 +233,7 @@ class PortalApplicantIntegrationTest extends TestCase
         $this->assertNotNull($publisher->capture($invoice)->payload['request_id']);
         config(['services.crm_portal.enabled' => false]);
         $this->artisan('portal:sync', ['--backfill' => true])->assertSuccessful();
-        $this->assertNull(\App\Models\PortalInvoiceState::find($invoice->uuid)->request_id);
+        $this->assertNull(PortalInvoiceState::find($invoice->uuid)->request_id);
         config(['services.crm_portal.enabled' => true]);
         $invoice->updateQuietly(['title' => 'Historical correction']);
         $this->assertNull($publisher->capture($invoice)->payload['request_id']);

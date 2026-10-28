@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Tenant;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,11 +18,9 @@ class AuthenticateCrmPortal
             return new JsonResponse(['message' => 'Unauthenticated.'], 401);
         }
 
-        if ($request->is('api/portal/v2/*')) {
-            $tenant = \App\Models\Tenant::current();
-            abort_unless($tenant && $tenant->id === config('services.crm_portal.tenant_id'), 403);
-            abort_unless(in_array($request->integer('school_sis_id'), config('services.crm_portal.school_sis_ids', []), true), 403);
-        }
+        $tenant = Tenant::current();
+        abort_unless($tenant && $tenant->id === config('services.crm_portal.tenant_id'), 403);
+        abort_unless(in_array($request->integer('school_sis_id'), config('services.crm_portal.school_sis_ids', []), true), 403);
 
         return $next($request);
     }

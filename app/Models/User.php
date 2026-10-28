@@ -366,7 +366,6 @@ class User extends Authenticatable implements HasLocalePreference
             return $this;
         }
 
-        $originalScope = \Bouncer::scope()->get();
         $contactStudents = PowerSchool::get("/ws/contacts/{$this->contact_id}/students")
             ->collect();
         $hasDataAccess = $contactStudents->some('canAccessData', true);
@@ -388,7 +387,7 @@ class User extends Authenticatable implements HasLocalePreference
         // is the single source of truth of access.
         // Remove access and then delete directly.
         $this->students
-            ->each(fn ($student) => $this->disallow('view', $student));
+            ->each(fn (Student $student) => $student->revokeGuardianViewPermissions(collect([$this])));
         $this->unsetRelation('students');
 
         DB::table('student_user')
@@ -426,11 +425,8 @@ class User extends Authenticatable implements HasLocalePreference
         DB::table('student_user')->insert($studentUsers);
 
         // Give fresh permission for these students
-        \Bouncer::scope()->remove();
         $this->students()
-            ->select('uuid')
-            ->each(fn ($student) => $this->allow('view', $student));
-        \Bouncer::scope()->to($originalScope);
+            ->each(fn (Student $student) => $student->grantGuardianViewPermissions(collect([$this])));
 
         return $this;
     }
