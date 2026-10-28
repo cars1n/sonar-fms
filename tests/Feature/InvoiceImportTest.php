@@ -43,6 +43,12 @@ class InvoiceImportTest extends TestCase
     use RefreshDatabase;
     use SignsIn;
 
+    private const FIXTURE_DUE_DATES_BY_STUDENT_NUMBER = [
+        '1' => '2021-10-01',
+        '2' => '2021-10-02',
+        '3' => '2021-10-03',
+    ];
+
     public function test_cannot_access_imports_without_permission()
     {
         $this->get(route('invoices.imports.index'))
@@ -466,9 +472,10 @@ class InvoiceImportTest extends TestCase
 
         $students = $import->school->students()
             ->whereIn('student_number', $values)
+            ->orderByDesc('student_number')
             ->get();
 
-        $students->each(function (Student $student, int $index) use ($contentsByStudentNumber, $term) {
+        $students->each(function (Student $student) use ($contentsByStudentNumber, $term) {
             $this->assertEquals(1, $student->invoices->count());
             /** @var Invoice $invoice */
             $invoice = $student->invoices->first();
@@ -504,7 +511,7 @@ class InvoiceImportTest extends TestCase
             $this->assertEquals($discount, $invoice->discount_total);
             $this->assertNotNull($invoice->invoiceImport);
             $this->assertTrue(
-                Carbon::create(2021, 10, 1 + $index, 0, 0, 0, $this->user->timezone)
+                Carbon::parse(self::FIXTURE_DUE_DATES_BY_STUDENT_NUMBER[$student->student_number], $this->user->timezone)
                     ->equalTo($invoice->due_at)
             );
             $this->assertTrue(
@@ -1457,9 +1464,10 @@ class InvoiceImportTest extends TestCase
 
         $students = $import->school->students()
             ->whereIn('student_number', $values)
+            ->orderByDesc('student_number')
             ->get();
 
-        $students->each(function (Student $student, int $index) use ($contentsByStudentNumber, $term) {
+        $students->each(function (Student $student) use ($contentsByStudentNumber, $term) {
             $this->assertEquals(1, $student->invoices->count());
             /** @var Invoice $invoice */
             $invoice = $student->invoices->first();
@@ -1541,7 +1549,7 @@ class InvoiceImportTest extends TestCase
             $this->assertEquals($due, $invoice->remaining_balance);
             $this->assertNotNull($invoice->invoiceImport);
             $this->assertTrue(
-                Carbon::create(2021, 10, 1 + $index, 0, 0, 0, $this->user->timezone)
+                Carbon::parse(self::FIXTURE_DUE_DATES_BY_STUDENT_NUMBER[$student->student_number], $this->user->timezone)
                     ->equalTo($invoice->due_at)
             );
             $this->assertTrue(
@@ -1644,9 +1652,10 @@ class InvoiceImportTest extends TestCase
 
         $students = $import->school->students()
             ->whereIn('student_number', $values)
+            ->orderByDesc('student_number')
             ->get();
 
-        $students->each(function (Student $student, int $index) use ($import, $contentsByStudentNumber, $term) {
+        $students->each(function (Student $student) use ($import, $contentsByStudentNumber, $term) {
             $this->assertEquals(1, $student->invoices->count());
             /** @var Invoice $invoice */
             $invoice = $student->invoices->first();
@@ -1678,7 +1687,7 @@ class InvoiceImportTest extends TestCase
             $this->assertEquals($discount, $invoice->discount_total);
             $this->assertNotNull($invoice->invoiceImport);
             $this->assertTrue(
-                Carbon::create(2021, 10, 1 + $index, 0, 0, 0, $this->user->timezone)
+                Carbon::parse(self::FIXTURE_DUE_DATES_BY_STUDENT_NUMBER[$student->student_number], $this->user->timezone)
                     ->equalTo($invoice->due_at)
             );
             $this->assertTrue(
