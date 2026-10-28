@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\InvoicePayment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
-use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 use Tests\Traits\CreatesPayments;
 
@@ -29,11 +28,9 @@ class PaymentReceiptTest extends TestCase
         $payment = $this->createPayment();
 
         $this->get("/payments/{$payment->id}/receipt")
+            ->assertOk()
+            ->assertViewIs('receipt')
             ->assertViewHas('title')
-            ->assertInertia(fn (Assert $page) => $page
-                ->has('title')
-                ->has('payment')
-                ->component('payments/Receipt')
-            );
+            ->assertViewHas('payment', fn (InvoicePayment $rendered) => $rendered->is($payment));
     }
 }

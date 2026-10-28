@@ -6,7 +6,7 @@ use App\Jobs\SyncSchool;
 use App\Notifications\TenantSyncComplete;
 use App\Notifications\TenantSyncFailed;
 use App\SisProviders\SisProvider;
-use GrantHolle\Http\Resources\Traits\HasResource;
+use App\Traits\HasResource;
 use Illuminate\Bus\Batch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -108,7 +108,7 @@ class Tenant extends TenantBase
                 ray("Notifying {$email}", $notification);
 
                 Notification::route('mail', $email)
-                    ->notify(new $notification());
+                    ->notify(new $notification);
             });
     }
 

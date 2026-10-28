@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use App\Traits\HasResource;
 use BeyondCode\Comments\Comment as Model;
 use Carbon\Carbon;
-use GrantHolle\Http\Resources\Traits\HasResource;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Str;

@@ -8,13 +8,21 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Testing\Fakes\PendingBatchFake;
+use Tests\Fakes\OfflineSchoolsProvider;
 use Tests\TestCase;
-use Tests\Traits\SignsIn;
 
 class SyncTenantSisDataTest extends TestCase
 {
     use RefreshDatabase;
-    use SignsIn;
+
+    protected bool $signIn = true;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tenant->update(['sis_provider' => OfflineSchoolsProvider::class]);
+    }
 
     protected function seedSyncTimes($count = 3)
     {

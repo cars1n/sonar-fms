@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use App\Traits\BelongsToTenant;
+use App\Traits\HasResource;
 use App\Traits\UsesUuid;
 use Carbon\Factory;
-use GrantHolle\Http\Resources\Traits\HasResource;
 use GrantHolle\PowerSchool\Api\Facades\PowerSchool;
 use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Builder;
@@ -53,6 +53,11 @@ class User extends Authenticatable implements HasLocalePreference
         'guardian_id' => 'int',
         'registered_at' => 'datetime',
     ];
+
+    public function getAuthPassword(): string
+    {
+        return (string) parent::getAuthPassword();
+    }
 
     public function scopeFilter(Builder $builder, array $filters)
     {

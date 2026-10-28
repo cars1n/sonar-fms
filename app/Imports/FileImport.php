@@ -21,7 +21,7 @@ class FileImport implements ToCollection, WithCalculatedFormulas, WithHeadingRow
         $this->import = $import;
     }
 
-    public function collection(Collection $collection)
+    public function collection(Collection $collection): void
     {
         ray($collection);
     }

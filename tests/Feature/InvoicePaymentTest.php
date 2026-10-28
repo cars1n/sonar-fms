@@ -10,6 +10,7 @@ use App\Models\InvoicePaymentTerm;
 use App\Models\PaymentMethod;
 use App\Models\Receipt;
 use App\Models\ReceiptLayout;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Queue;
@@ -28,7 +29,7 @@ class InvoicePaymentTest extends TestCase
 
     protected bool $signIn = true;
 
-    protected \Illuminate\Contracts\Filesystem\Filesystem $disk;
+    protected Filesystem $disk;
 
     protected function setUp(): void
     {
@@ -84,9 +85,7 @@ class InvoicePaymentTest extends TestCase
             ->setTimezone(config('app.timezone'));
         $amount = (int) round($invoice->amount_due / 2);
 
-        if ($amount < 1) {
-            rd($amount, $invoice);
-        }
+        $this->assertGreaterThan(0, $amount);
 
         $data = [
             'invoice_uuid' => $invoice->uuid,
@@ -230,9 +229,7 @@ class InvoicePaymentTest extends TestCase
         $child = $parent->children->random();
         $amount = (int) round($child->amount_due / 2);
 
-        if ($amount < 1) {
-            rd($amount, $child);
-        }
+        $this->assertGreaterThan(0, $amount);
 
         $date = $this->user->getCarbonFactory()
             ->today()

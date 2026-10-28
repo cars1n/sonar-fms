@@ -22,3 +22,8 @@ _ide_helper.php
 .phpstorm.meta.php
 /public/build
 .phpactor.json
+
+/.env.testing
+/.phpunit.cache
+/.ci-home/
+/.ci-cache/

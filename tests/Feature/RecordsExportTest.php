@@ -8,9 +8,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
+use Tests\Traits\CreatesInvoice;
 
 class RecordsExportTest extends TestCase
 {
+    use CreatesInvoice;
     use RefreshDatabase;
 
     protected bool $signIn = true;
@@ -39,8 +41,12 @@ class RecordsExportTest extends TestCase
         $this->assertDatabaseHas('record_exports', $data);
     }
 
-    public function test_cant_create_a_new_invoice_export_without_permission()
+    public function test_invoice_export_without_global_permission_only_contains_assigned_invoices()
     {
+        $hidden = $this->createInvoice(['published_at' => now()]);
+        $visible = $this->createInvoice(['published_at' => now()]);
+        $visible->users()->attach($this->user->uuid);
+
         $data = [
             'name' => Str::random(),
             'format' => 'xlsx',
@@ -54,7 +60,12 @@ class RecordsExportTest extends TestCase
         ];
 
         $this->post('/export/invoices', $data)
-            ->assertForbidden();
+            ->assertRedirect();
+
+        $export = RecordExport::where('user_uuid', $this->user->uuid)->firstOrFail();
+        $exportedIds = Invoice::getExportQuery($export)->get()->modelKeys();
+        $this->assertSame([$visible->uuid], $exportedIds);
+        $this->assertNotContains($hidden->uuid, $exportedIds);
     }
 
     public function test_can_download_invoice_export()

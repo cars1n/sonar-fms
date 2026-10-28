@@ -35,14 +35,14 @@ class StudentFetchTest extends TestCase
     {
         $this->assignPermission('view', Student::class);
 
-        $this->createStudents(['first_name' => 'John'], 11);
+        $this->createStudents(['first_name' => 'UniqueSearchFixture'], 11);
 
-        $res = $this->get(route('students.search', ['s' => 'JOHN']))
+        $res = $this->get(route('students.search', ['s' => 'UNIQUESEARCHFIXTURE']))
             ->assertOk();
 
         $results = $res->json();
 
         $this->assertCount(10, $results);
-        $this->assertTrue(collect($results)->every(fn ($s) => $s['first_name'] === 'John'));
+        $this->assertTrue(collect($results)->every(fn ($s) => $s['first_name'] === 'UniqueSearchFixture'));
     }
 }

@@ -26,7 +26,7 @@ class InvoiceScholarshipFactory extends Factory
         return [
             'uuid' => Str::uuid()->toString(),
             'name' => $this->faker->word,
-            'amount' => $this->faker->numberBetween(1),
+            'amount' => $this->faker->numberBetween(1, 10000),
             'resolution_strategy' => Least::class,
         ];
     }

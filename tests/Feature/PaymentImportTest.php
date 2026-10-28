@@ -263,7 +263,7 @@ class PaymentImportTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->has('title')
                 ->has('breadcrumbs')
-                ->where('paymentImport', $import->refresh()->load('user')->toResource())
+                ->where('paymentImport', json_decode($import->refresh()->load('user')->toResource()->toJson(), true))
                 ->has('permissions')
                 ->where('previewResults', [])
                 ->has('results')

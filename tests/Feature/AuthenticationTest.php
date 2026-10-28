@@ -5,6 +5,9 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -60,5 +63,33 @@ class AuthenticationTest extends TestCase
         $this->assertNotNull($activity);
         $this->assertStringContainsString('failed', Activity::first()->description);
         $this->assertEquals('auth', $activity->log_name);
+    }
+
+    public static function passwordlessRememberCookies(): array
+    {
+        return [
+            'legacy empty password hash' => ['legacy', true],
+            'current password hash' => ['current', true],
+            'stale password hash' => ['stale', false],
+            'mismatched remember token' => ['wrong-token', false],
+        ];
+    }
+
+    #[DataProvider('passwordlessRememberCookies')]
+    public function test_passwordless_sso_remember_cookies_are_handled(string $format, bool $authenticated): void
+    {
+        $user = $this->createUser(['password' => null]);
+        $guard = Auth::guard('web');
+        $hash = match ($format) {
+            'legacy' => '',
+            'current', 'wrong-token' => $guard->hashPasswordForCookie(''),
+            'stale' => 'stale-password-hash',
+        };
+        $token = $format === 'wrong-token' ? 'unrelated-token' : $user->getRememberToken();
+        $guard->setRequest(Request::create('/', 'GET', [], [
+            $guard->getRecallerName() => $user->getAuthIdentifier().'|'.$token.'|'.$hash,
+        ]));
+
+        $this->assertSame($authenticated ? $user->uuid : null, $guard->user()?->uuid);
     }
 }

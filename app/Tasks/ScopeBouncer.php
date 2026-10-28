@@ -2,15 +2,16 @@
 
 namespace App\Tasks;
 
+use App\Models\Tenant;
 use Silber\Bouncer\BouncerFacade;
-use Spatie\Multitenancy\Models\Tenant;
+use Spatie\Multitenancy\Contracts\IsTenant;
 use Spatie\Multitenancy\Tasks\SwitchTenantTask;
 
 class ScopeBouncer implements SwitchTenantTask
 {
-    public function makeCurrent(Tenant $tenant): void
+    public function makeCurrent(IsTenant $tenant): void
     {
-        /** @var \App\Models\Tenant $tenant */
+        /** @var Tenant $tenant */
         BouncerFacade::scope()->to($tenant->id);
     }
 

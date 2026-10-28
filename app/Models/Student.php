@@ -6,10 +6,12 @@ use App\Concerns\Exportable;
 use App\Traits\BelongsToSchool;
 use App\Traits\BelongsToTenant;
 use App\Traits\HasGradeLevelAttribute;
+use App\Traits\HasResource;
 use App\Traits\UsesUuid;
 use BeyondCode\Comments\Traits\HasComments;
-use GrantHolle\Http\Resources\Traits\HasResource;
+use GrantHolle\PowerSchool\Api\Exception\MissingClientCredentialsException;
 use GrantHolle\PowerSchool\Api\Facades\PowerSchool;
+use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -180,8 +182,8 @@ class Student extends Model implements Exportable, Searchable
      * The contact account MUST have
      * first name, last name and an email to be synced
      *
-     * @throws \GrantHolle\PowerSchool\Api\Exception\MissingClientCredentialsException
-     * @throws \GuzzleHttp\Exception\GuzzleException
+     * @throws MissingClientCredentialsException
+     * @throws GuzzleException
      */
     public function syncContacts(?Collection $schools = null): array
     {

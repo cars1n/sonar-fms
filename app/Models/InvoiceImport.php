@@ -9,8 +9,8 @@ use App\Rules\FileImportMap;
 use App\Rules\InvoiceImportAmountOrPercentage;
 use App\Traits\BelongsToSchool;
 use App\Traits\BelongsToUser;
+use App\Traits\HasResource;
 use App\Traits\ImportsFiles;
-use GrantHolle\Http\Resources\Traits\HasResource;
 use Illuminate\Bus\Batch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -47,8 +47,7 @@ class InvoiceImport extends Model implements FileImport
 
     public function scopeFilter(Builder $builder, array $filters)
     {
-        $builder->when($filters['s'] ?? null, function (Builder $builder, string $search) {
-        });
+        $builder->when($filters['s'] ?? null, function (Builder $builder, string $search) {});
     }
 
     public function invoices(): HasMany

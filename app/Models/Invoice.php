@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\Exportable;
+use App\Factories\PdfBrowserFactory;
 use App\Factories\UuidFactory;
 use App\Http\Requests\SaveRefundRequest;
 use App\Jobs\CalculateInvoiceAttributes;
@@ -10,15 +11,17 @@ use App\Jobs\CreateInvoicePdf;
 use App\Jobs\MakeReceipt;
 use App\Jobs\SendNewInvoiceNotification;
 use App\Jobs\SetStudentCachedValues;
+use App\Services\PortalPublisher;
 use App\Traits\BelongsToSchool;
 use App\Traits\BelongsToTenant;
 use App\Traits\BelongsToUser;
 use App\Traits\HasActivities;
 use App\Traits\HasGradeLevelAttribute;
+use App\Traits\HasResource;
 use App\Traits\HasTaxRateAttribute;
 use App\Traits\UsesUuid;
-use GrantHolle\Http\Resources\Traits\HasResource;
 use GrantHolle\Timezone\Facades\Timezone;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -37,7 +41,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Spatie\Browsershot\Browsershot;
 use Spatie\Searchable\Searchable;
 use Spatie\Searchable\SearchResult;
 
@@ -145,10 +148,10 @@ class Invoice extends Model implements Exportable, Searchable
     {
         static::saved(function (Invoice $invoice) {
             if (config('services.crm_portal.enabled')) {
-                \Illuminate\Support\Facades\DB::afterCommit(function () use ($invoice): void {
+                DB::afterCommit(function () use ($invoice): void {
                     $current = Invoice::find($invoice->uuid);
                     if ($current) {
-                        app(\App\Services\PortalPublisher::class)->capture($current);
+                        app(PortalPublisher::class)->capture($current);
                     }
                 });
             }
@@ -1374,7 +1377,7 @@ class Invoice extends Model implements Exportable, Searchable
         return $this;
     }
 
-    public static function getPdfDisk(): \Illuminate\Contracts\Filesystem\Filesystem|\Illuminate\Filesystem\FilesystemAdapter
+    public static function getPdfDisk(): Filesystem|FilesystemAdapter
     {
         return Storage::disk(config('filesystems.invoices'));
     }
@@ -1417,14 +1420,12 @@ class Invoice extends Model implements Exportable, Searchable
 
         $disk->makeDirectory(dirname($path));
 
-        Browsershot::html($content)
+        PdfBrowserFactory::make($content)
             ->disableJavascript()
             ->margins(0, 0, 0, 0)
             ->format($layout->paper_size)
             ->noSandbox()
             ->showBackground()
-            ->setNodeBinary(config('services.node.binary'))
-            ->setNpmBinary(config('services.node.npm'))
             ->addChromiumArguments([
                 'user-data-dir' => $userDir,
             ])

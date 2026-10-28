@@ -1,0 +1,10 @@
+.git
+.env*
+vendor
+node_modules
+storage
+public/build
+.php85-composer-cache
+.phpunit.cache
+.ci-home
+.ci-cache

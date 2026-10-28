@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
+use App\Traits\HasResource;
 use Carbon\CarbonImmutable;
-use GrantHolle\Http\Resources\Traits\HasResource;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 

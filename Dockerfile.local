@@ -1,3 +1,0 @@
-FROM sail-8.5/app
-ENV PUPPETEER_CACHE_DIR=/opt/sonar-browser
-RUN npm install --global puppeteer@25.10.0 && chmod -R a+rX /opt/sonar-browser

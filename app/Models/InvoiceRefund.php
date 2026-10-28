@@ -7,7 +7,7 @@ use App\Traits\BelongsToSchool;
 use App\Traits\BelongsToTenant;
 use App\Traits\BelongsToUser;
 use App\Traits\HasAmountAttribute;
-use GrantHolle\Http\Resources\Traits\HasResource;
+use App\Traits\HasResource;
 use GrantHolle\Timezone\Facades\Timezone;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;

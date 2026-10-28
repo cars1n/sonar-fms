@@ -6,6 +6,7 @@ use App\Utilities\NumberUtility;
 use Brick\Money\Money;
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 trait ConvertsExcelValues
 {
@@ -16,12 +17,7 @@ trait ConvertsExcelValues
     protected function convertDate($value): ?string
     {
         if (is_numeric($value)) {
-            $date = Carbon::create(1900);
-            $days = floatval($value) - 2;
-            $hours = $days * 24;
-            $minutes = $hours * 60;
-
-            return $date->addMinutes((int) $minutes)
+            return Carbon::instance(Date::excelToDateTimeObject((float) $value))
                 ->toDateString();
         }
 
@@ -59,12 +55,7 @@ trait ConvertsExcelValues
     protected function convertDateTime($value): ?string
     {
         if (is_numeric($value)) {
-            $date = Carbon::create(1900, 1, 1, 0, 0, 0, $this->user->timezone);
-            $days = floatval($value) - 2;
-            $hours = $days * 24;
-            $minutes = $hours * 60;
-
-            return $date->addMinutes((int) $minutes)
+            return Carbon::instance(Date::excelToDateTimeObject((float) $value, $this->user->timezone))
                 ->roundUnit('minute', 15)
                 ->setTimezone(config('app.timezone'))
                 ->toDateTimeString();

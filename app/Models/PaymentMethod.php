@@ -9,8 +9,8 @@ use App\PaymentMethods\PaymentMethodDriver;
 use App\PaymentMethods\Skiply;
 use App\Traits\BelongsToSchool;
 use App\Traits\BelongsToTenant;
+use App\Traits\HasResource;
 use App\Traits\ScopeToCurrentSchool;
-use GrantHolle\Http\Resources\Traits\HasResource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -89,7 +89,7 @@ class PaymentMethod extends Model
             throw new PaymentMethodDriverNotFound("The {$driverName} payment method driver could not be found.");
         }
 
-        return new $driver();
+        return new $driver;
     }
 
     public function getDriver(): PaymentMethodDriver
@@ -116,7 +116,7 @@ class PaymentMethod extends Model
             PaymentMethod::getAllDrivers(),
             function (array $methods, PaymentMethodDriver $driver) use ($paymentMethods) {
                 /** @var static $paymentMethod */
-                $paymentMethod = $paymentMethods->get($driver->key(), new PaymentMethod());
+                $paymentMethod = $paymentMethods->get($driver->key(), new PaymentMethod);
 
                 if (! $paymentMethod->id) {
                     return $methods;

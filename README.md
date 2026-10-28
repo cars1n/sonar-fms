@@ -1,67 +1,27 @@
 # Sonar FMS
 
-## Prerequisites
+PHP 8.5.12 or newer in the 8.5 series is used for local development, Jenkins, web requests, Horizon, and scheduled commands. Node.js 22 is used to build assets.
 
-This uses headless Chrome to render and save the PDF files. This gives us the full HTML and CSS freedom to display a good PDF. There are some prerequisites required:
+## Local verification
 
-```bash
-curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs gconf-service libasound2 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1 libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libappindicator1 libnss3 lsb-release xdg-utils wget libgbm-dev libxshmfence-dev
-sudo npm install --location=global --unsafe-perm puppeteer
-sudo chmod -R o+rx /usr/lib/node_modules/puppeteer/.local-chromium
-```
+Start the managed workspace with `dev-workspace up sonar-fms`. Its PHP 8.5 image includes PostgreSQL, Redis, Intl, spreadsheet extensions, Chromium, and Puppeteer support. Use the manager's Composer, npm, artisan, and exec wrappers.
 
-## First time set up
+Copy `.env.testing.example` to `.env.testing` for disposable tests. The test database must be named `fms_test`; the suite refreshes it. Run dependency installation, `composer check-platform-reqs`, `npm ci`, `npm run build`, and `vendor/bin/phpunit` inside the workspace. Use test credentials and mocked integrations only.
 
-Then perform your usual "getting started" tasks for Laravel:
+## PDF rendering
 
-- Clone the repo
-- `composer install`
-- `cp .env.example .env`
-- `php artisan key:generate`
-- Set up your database
-- `npm i`
-- `npm run dev`
+The managed local image and CI image install Node.js 22, Puppeteer 25.10, and Chrome/Chromium for Browsershot. Production needs the same Node/Puppeteer setup and a browser executable accessible to `www-data`. Keep browser dependencies in the image or server provisioning; do not install them through application requests.
 
-At this point, you should be set to do your project with Inertia and Tailwind already installed. Depending on your project requirements, you'll likely want to start with authentication.
+For a dedicated production PDF runtime, set `NODE_BINARY`, `NPM_BINARY`, `BROWSERSHOT_NODE_MODULE_PATH`, and `BROWSERSHOT_CHROME_PATH` to its absolute paths before caching configuration. Both invoice and receipt rendering use the same factory and configuration.
 
 ## Deployment
 
-This is my (Grant's) first attempt at using Laravel Octane. I used the following commands to get openswoole installed:
+The Jenkins job `invoices.lifepluslearning.com` loads `Jenkinsfile` from `https://github.com/cars1n/sonar-fms.git`, branch `main`. It polls that branch every five minutes and also supports manual builds. Concurrent deployments are disabled.
 
-```
-sudo apt install -y libpq-dev libcurl4-openssl-dev
-pecl install -D 'enable-sockets="no" enable-openssl="yes" enable-http2="yes" enable-mysqlnd="no" enable-swoole-json="yes" enable-swoole-curl="yes" enable-cares="yes" with-postgres="yes"' openswoole
-```
+The pipeline builds `Dockerfile.ci`, installs locked dependencies without ignoring platform requirements, builds assets with Node 22, and runs the complete PHP suite against a disposable PostgreSQL database. It then removes development dependencies, archives the release with its Git revision, and deploys to `invoices` (`10.100.1.145`) using the existing `gholle` Jenkins SSH credential. The SSH host key is pinned to the key verified through the managed production connection.
 
-I don't actually think Laravel would use the Postgres and curl tools that comes with Swoole, but enabled them nontheless.
+`scripts/deploy.sh` prepares a release under `/var/www/invoices.ldiglobal.org/releases`, links persistent environment and storage paths, and verifies Composer's platform check before atomically updating `live`. It reloads PHP 8.5 FPM, restarts Horizon gracefully, and checks the login route and release revision. A failure after switching restores the previous release. Previous releases are retained. Database migrations require a separate, reviewed deployment change.
 
-### Supervisor
+Production Nginx must use `/run/php/php8.5-fpm.sock`. Supervisor runs `/usr/bin/php8.5 /var/www/invoices.ldiglobal.org/live/artisan horizon` as `www-data`; the `www-data` scheduler uses `/usr/bin/php8.5 artisan schedule:run`. Keep the CLI alternative on `/usr/bin/php8.5`.
 
-Here are the supervisor configs used for Horizon and Octane:
-
-```
-[program:sonar-fms-worker]
-process_name=%(program_name)s_%(process_num)02d
-command=php /var/www/invoices.ldiglobal.org/live/artisan horizon
-autostart=true
-autorestart=true
-user=www-data
-numprocs=1
-redirect_stderr=true
-stdout_logfile=/var/www/worker.log
-stopwaitsecs=360
-```
-
-```
-[program:sonar-fms-octane]
-process_name=%(program_name)s_%(process_num)02d
-command=php /var/www/invoices.ldiglobal.org/live/artisan octane:start --server=swoole --host=0.0.0.0 --port=80
-autostart=true
-autorestart=true
-user=www-data
-#numprocs=1
-redirect_stderr=true
-stdout_logfile=/var/www/octane.log
-stopwaitsecs=3600
-```
+To roll back application code, atomically repoint `live` to a retained, PHP 8.5 compatible release, reload `php8.5-fpm`, and restart `sonar-fms-worker`. Server configuration backups are kept outside the application tree.

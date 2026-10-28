@@ -2,8 +2,10 @@ services:
   laravel.test:
     build:
       context: .
-      dockerfile: Dockerfile.local
-    image: sonar-fms-local/app
+      dockerfile: Dockerfile.ci
+    image: sonar-fms-php85-local/app
+    dns:
+      - '1.1.1.2'
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     ports:

@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use GrantHolle\Http\Resources\Traits\HasResource;
+use App\Traits\HasResource;
 use Spatie\Tags\Tag as Model;
 
 /**

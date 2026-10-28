@@ -33,6 +33,8 @@ return [
     'node' => [
         'binary' => env('NODE_BINARY', '/usr/bin/node'),
         'npm' => env('NPM_BINARY', '/usr/bin/npm'),
+        'modules' => env('BROWSERSHOT_NODE_MODULE_PATH'),
+        'chrome' => env('BROWSERSHOT_CHROME_PATH'),
     ],
 
     'crm_portal' => [

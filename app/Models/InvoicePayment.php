@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\Exportable;
+use App\Factories\PdfBrowserFactory;
 use App\Http\Requests\UpdatePaymentRequest;
 use App\Jobs\CalculateInvoiceAttributes;
 use App\Jobs\MakeReceipt;
@@ -10,9 +11,9 @@ use App\Traits\BelongsToInvoice;
 use App\Traits\BelongsToSchool;
 use App\Traits\BelongsToTenant;
 use App\Traits\HasAmountAttribute;
+use App\Traits\HasResource;
 use App\Traits\UsesUuid;
 use Brick\Money\Money;
-use GrantHolle\Http\Resources\Traits\HasResource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -26,7 +27,6 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Browsershot\Browsershot;
 
 /**
  * @mixin IdeHelperInvoicePayment
@@ -291,14 +291,12 @@ class InvoicePayment extends Model implements Exportable
         $disk = Receipt::getDisk();
         $disk->makeDirectory(dirname($receipt->path));
 
-        Browsershot::html($content)
+        PdfBrowserFactory::make($content)
             ->disableJavascript()
             ->margins(0, 0, 0, 0)
             ->format($layout->paper_size)
             ->noSandbox()
             ->showBackground()
-            ->setNodeBinary(config('services.node.binary'))
-            ->setNpmBinary(config('services.node.npm'))
             ->addChromiumArguments([
                 'user-data-dir' => $userDir,
             ])

@@ -17,8 +17,6 @@ class RecordsExport implements FromQuery, Responsable, WithHeadings, WithMapping
 {
     use Exportable;
 
-    public string $fileName;
-
     public function __construct(protected RecordExport $export)
     {
         $this->fileName = $this->export->file_name;

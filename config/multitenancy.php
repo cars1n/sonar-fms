@@ -1,5 +1,6 @@
 <?php
 
+use App\Tasks\ChangeConfigTask;
 use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Mail\SendQueuedMailable;
@@ -9,6 +10,8 @@ use Spatie\Multitenancy\Actions\MakeQueueTenantAwareAction;
 use Spatie\Multitenancy\Actions\MakeTenantCurrentAction;
 use Spatie\Multitenancy\Actions\MigrateTenantAction;
 use Spatie\Multitenancy\Models\Tenant;
+use Spatie\Multitenancy\Tasks\PrefixCacheTask;
+use Spatie\Multitenancy\TenantFinder\DomainTenantFinder;
 
 return [
     /*
@@ -18,7 +21,7 @@ return [
      * This class should extend `Spatie\Multitenancy\TenantFinder\TenantFinder`
      *
      */
-    'tenant_finder' => \Spatie\Multitenancy\TenantFinder\DomainTenantFinder::class,
+    'tenant_finder' => DomainTenantFinder::class,
 
     /*
      * These fields are used by tenant:artisan command to match one or more tenant
@@ -33,8 +36,8 @@ return [
      * A valid task is any class that implements Spatie\Multitenancy\Tasks\SwitchTenantTask
      */
     'switch_tenant_tasks' => [
-        \Spatie\Multitenancy\Tasks\PrefixCacheTask::class,
-        \App\Tasks\ChangeConfigTask::class,
+        PrefixCacheTask::class,
+        ChangeConfigTask::class,
         // I think scope needs to be set to school, not tenant
         // since schools are the lowest 'tenancy' in the app
         // and permissions are restricted to them
@@ -46,7 +49,7 @@ return [
      *
      * It must be or extend `Spatie\Multitenancy\Models\Tenant::class`
      */
-    'tenant_model' => \App\Models\Tenant::class,
+    'tenant_model' => App\Models\Tenant::class,
 
     /*
      * If there is a current tenant when dispatching a job, the id of the current tenant
@@ -71,6 +74,8 @@ return [
      * This key will be used to bind the current tenant in the container.
      */
     'current_tenant_container_key' => 'currentTenant',
+
+    'current_tenant_context_key' => 'tenantId',
 
     /*
      * You can customize some of the behavior of this package by using our own custom action.
