@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\TestCase;
 use Illuminate\Http\Request;
 use Pear\OpenId\Discover\Discover;
 use Pear\OpenId\Discover\DiscoverInterface;
+use Pear\OpenId\Exceptions\OpenIdAssociationException;
 use Pear\OpenId\OpenId;
 use Pear\OpenId\ServiceEndpoint;
 use Pear\OpenId\ServiceEndpoints;
@@ -74,6 +75,78 @@ class PowerSchoolOpenIdIdentifierTest extends TestCase
         }
 
         $this->assertCount(2, FixtureOpenIdDiscovery::$identifiers);
+    }
+
+    public function test_incomplete_and_cancelled_callbacks_are_denied_before_discovery(): void
+    {
+        $valid = [
+            'openid_mode' => 'id_res',
+            'openid_ns' => OpenId::NS_2_0,
+            'openid_identity' => 'https://school.example.org/openid/identity',
+            'openid_claimed_id' => 'https://school.example.org/openid/identity',
+        ];
+        $callbacks = [[], ['openid_mode' => 'cancel']];
+        foreach ([null, '', [], 'cancel', 'setup_needed', 'error', 'unknown'] as $mode) {
+            $callbacks[] = array_replace($valid, ['openid_mode' => $mode]);
+        }
+        foreach (['openid_identity', 'openid_claimed_id'] as $field) {
+            if ($field === 'openid_claimed_id') {
+                $missing = $valid;
+                unset($missing[$field]);
+                $callbacks[] = $missing;
+                $callbacks[] = array_replace($valid, [$field => null]);
+            }
+            foreach (['', [], ['https://school.example.org'], 'ftp://school.example.org', 'https://', 'https://school.example.org/'.str_repeat('a', 2048)] as $value) {
+                $callbacks[] = array_replace($valid, [$field => $value]);
+            }
+        }
+
+        foreach ($callbacks as $callback) {
+            try {
+                app(PowerSchoolOpenIdLoginController::class)->login(
+                    Request::create('/auth/powerschool/openid/verify', 'GET', $callback)
+                );
+                $this->fail('Invalid callback was accepted.');
+            } catch (HttpException $exception) {
+                $this->assertSame(403, $exception->getStatusCode());
+            }
+        }
+        $this->assertSame([], FixtureOpenIdDiscovery::$identifiers);
+    }
+
+    public function test_well_formed_callback_preserves_the_assertion_verifiers_result(): void
+    {
+        $identity = 'https://school.example.org/openid/identity';
+        foreach ([
+            ['openid.ns' => OpenId::NS_2_0, 'openid.identity' => $identity, 'openid.claimed_id' => $identity],
+            ['openid.identity' => $identity], // OpenID 1.1
+            ['openid.ns' => OpenId::NS_2_0, 'openid.claimed_id' => $identity], // Unsolicited
+        ] as $fields) {
+            $query = http_build_query(['openid.mode' => 'id_res'] + $fields);
+            $request = Request::create('/auth/powerschool/openid/verify?'.$query);
+            foreach ([true, false] as $verified) {
+                $controller = \Mockery::mock(PowerSchoolOpenIdLoginController::class)->makePartial()
+                    ->shouldAllowMockingProtectedMethods();
+                $controller->shouldReceive('verifyOpenIdAssertion')->once()->with($request)->andReturn($verified);
+                $method = new \ReflectionMethod(PowerSchoolOpenIdLoginController::class, 'authVerified');
+                $this->assertSame($verified, $method->invoke($controller, $request));
+            }
+        }
+    }
+
+    public function test_well_formed_identifiers_do_not_bypass_real_assertion_validation(): void
+    {
+        $query = http_build_query([
+            'openid.mode' => 'id_res',
+            'openid.identity' => 'https://school.example.org/openid/identity',
+            'openid.claimed_id' => 'https://school.example.org/openid/identity',
+            'openid.return_to' => 'invalid',
+        ]);
+        $request = Request::create('https://invoices.example.org/auth/powerschool/openid/verify?'.$query);
+
+        $this->expectException(OpenIdAssociationException::class);
+        $this->expectExceptionMessage('openid.return_to parameter is invalid or missing');
+        app(PowerSchoolOpenIdLoginController::class)->login($request);
     }
 }
 

@@ -14,17 +14,44 @@ class PowerSchoolOpenIdLoginController extends Controller
 {
     use AuthenticatesUsingPowerSchoolWithOpenId {
         authenticate as private authenticateWithOpenId;
+        authVerified as protected verifyOpenIdAssertion;
     }
 
     public function authenticate(Request $request)
     {
         // The legacy discovery library treats unknown URL schemes as hostnames.
         // Reject invalid input before it can initiate an outbound request.
-        abort_if(Validator::make($request->only('openid_identifier'), [
-            'openid_identifier' => ['required', 'string', 'max:2048', 'url:http,https'],
-        ])->fails(), 422, 'A valid HTTP or HTTPS PowerSchool OpenID identifier is required.');
+        abort_unless($this->validOpenIdIdentifiers($request, ['openid_identifier']), 422, 'A valid HTTP or HTTPS PowerSchool OpenID identifier is required.');
 
         return $this->authenticateWithOpenId($request);
+    }
+
+    protected function authVerified(Request $request): bool
+    {
+        // The legacy verifier normalizes claimed_id before checking the mode.
+        // Cancelled and incomplete callbacks must never reach that normalization.
+        if ($request->input('openid_mode') !== 'id_res') {
+            return false;
+        }
+
+        // Keep the library's unsolicited assertions and OpenID 1.1 support:
+        // a missing identity falls back to claimed_id; 1.1 need not send claimed_id.
+        $fields = $request->input('openid_identity') === null ? [] : ['openid_identity'];
+        if ($fields === [] || $request->has('openid_ns') || $request->has('openid_claimed_id')) {
+            $fields[] = 'openid_claimed_id';
+        }
+        if (! $this->validOpenIdIdentifiers($request, $fields)) {
+            return false;
+        }
+
+        return $this->verifyOpenIdAssertion($request);
+    }
+
+    private function validOpenIdIdentifiers(Request $request, array $fields): bool
+    {
+        return Validator::make($request->only($fields), array_fill_keys(
+            $fields, ['required', 'string', 'max:2048', 'url:http,https']
+        ))->passes();
     }
 
     /**
