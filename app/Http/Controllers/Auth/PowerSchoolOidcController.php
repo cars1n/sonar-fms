@@ -7,6 +7,8 @@ use App\Models\Tenant;
 use App\Models\User;
 use GrantHolle\PowerSchool\Auth\Traits\AuthenticatesUsingPowerSchoolWithOidc;
 use GrantHolle\PowerSchool\Auth\UserFactory;
+use GuzzleHttp\Psr7\Uri;
+use GuzzleHttp\Psr7\UriResolver;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -46,6 +48,52 @@ class PowerSchoolOidcController extends Controller
         return redirect($tenant->ps_url);
     }
 
+    protected function isTrustedPowerSchoolUrl(mixed $url): bool
+    {
+        if (! is_string($url) || ! filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+        $parts = parse_url($url);
+        $trusted = parse_url($this->getPowerSchoolUrl());
+
+        return is_array($parts) && is_array($trusted)
+            && strtolower($parts['scheme'] ?? '') === 'https'
+            && strtolower($parts['host'] ?? '') === strtolower($trusted['host'] ?? '')
+            && ($parts['port'] ?? 443) === ($trusted['port'] ?? 443)
+            && ! isset($parts['user']) && ! isset($parts['pass']);
+    }
+
+    /** Use the same bounded, trusted discovery flow for initiation and callback. */
+    protected function getOidcConfiguration(?string $key = null)
+    {
+        $url = rtrim($this->getPowerSchoolUrl(), '/').'/oauth2/.well-known/openid-configuration';
+        try {
+            for ($redirects = 0; $redirects <= 5; $redirects++) {
+                abort_unless($this->isTrustedPowerSchoolUrl($url), 502);
+                $response = Http::acceptJson()->withoutRedirecting()->timeout(15)->get($url);
+                if (! $response->redirect()) {
+                    break;
+                }
+                $location = $response->header('Location');
+                abort_unless($location !== '' && $redirects < 5, 502);
+                $url = (string) UriResolver::resolve(new Uri($url), new Uri($location));
+            }
+        } catch (ConnectionException|\InvalidArgumentException $exception) {
+            abort(502, 'The sign-in provider is unavailable. Please try again.');
+        }
+        $configuration = $response->json();
+        abort_unless($response->successful() && is_array($configuration)
+            && $this->isTrustedPowerSchoolUrl($configuration['token_endpoint'] ?? null), 502);
+        if ($key !== null) {
+            return $configuration[$key] ?? null;
+        }
+        abort_unless($this->isTrustedPowerSchoolUrl($configuration['authorization_endpoint'] ?? null)
+            && is_array($configuration['scopes_supported'] ?? null)
+            && collect($configuration['scopes_supported'])->every(fn ($scope) => is_string($scope)), 502);
+
+        return $configuration;
+    }
+
     /** Reject incomplete provider responses before decoding claims or creating a user. */
     public function login(Request $request): RedirectResponse|Response
     {
@@ -60,12 +108,7 @@ class PowerSchoolOidcController extends Controller
             && ! $request->has('error'), 403);
 
         try {
-            $discovery = Http::acceptJson()->withOptions(['allow_redirects' => ['max' => 5, 'protocols' => ['https']]])->timeout(15)
-                ->get(rtrim($this->getPowerSchoolUrl(), '/').'/oauth2/.well-known/openid-configuration');
-            $endpoint = $discovery->json('token_endpoint');
-            abort_unless($discovery->successful() && is_string($endpoint)
-                && filter_var($endpoint, FILTER_VALIDATE_URL)
-                && strtolower((string) parse_url($endpoint, PHP_URL_SCHEME)) === 'https', 502);
+            $endpoint = $this->getOidcConfiguration('token_endpoint');
 
             $response = Http::asForm()->acceptJson()->withoutRedirecting()->timeout(15)
                 ->post($endpoint, [

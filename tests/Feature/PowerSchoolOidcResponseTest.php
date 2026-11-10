@@ -130,13 +130,46 @@ class PowerSchoolOidcResponseTest extends TestCase
     {
         Http::swap(new Factory);
         $handler = new MockHandler([
-            new Response(302, ['Location' => 'https://canonical.example.test/discovery']),
-            new Response(200, ['Content-Type' => 'application/json'], '{"token_endpoint":"https://canonical.example.test/token"}'),
+            new Response(302, ['Location' => 'https://school.example.test/discovery']),
+            new Response(200, ['Content-Type' => 'application/json'], '{"token_endpoint":"https://school.example.test/token"}'),
             new Response(200, ['Content-Type' => 'application/json'], 'null'),
         ]);
         Http::globalOptions(['handler' => HandlerStack::create($handler)]);
         $this->denied($this->makeCallback(), 403);
         $this->assertSame(0, $handler->count());
+    }
+
+    public function test_untrusted_and_malformed_redirects_stop_before_credentials_are_sent(): void
+    {
+        foreach (['https://other.example.test/discovery', 'https://school.example.test:99999/discovery', 'http://school.example.test/discovery'] as $location) {
+            Http::swap(new Factory);
+            Http::preventStrayRequests();
+            Http::fake(['*' => Http::response('', 302, ['Location' => $location])]);
+            $this->denied($this->makeCallback(), 502);
+            Http::assertSentCount(1);
+        }
+    }
+
+    public function test_foreign_token_endpoint_never_receives_credentials(): void
+    {
+        foreach (['https://other.example.test/token', 'https://school.example.test:444/token', 'https://name:password@school.example.test/token'] as $endpoint) {
+            Http::swap(new Factory);
+            Http::preventStrayRequests();
+            Http::fake(['*' => Http::response(['token_endpoint' => $endpoint])]);
+            $this->denied($this->makeCallback(), 502);
+            Http::assertSentCount(1);
+        }
+    }
+
+    public function test_initiation_uses_the_same_discovery_validation(): void
+    {
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        Http::fakeSequence()
+            ->push('', 302, ['Location' => '/canonical-discovery'])
+            ->push(['token_endpoint' => 'https://school.example.test/token', 'authorization_endpoint' => 'https://school.example.test/authorize', 'scopes_supported' => ['openid']]);
+        $this->assertSame(['openid'], (new OidcResponseFixture)->discovery()['scopes_supported']);
+        Http::assertSentCount(2);
     }
 
     public function test_valid_response_preserves_user_factory_guard_and_login_response(): void
@@ -178,6 +211,11 @@ class PowerSchoolOidcResponseTest extends TestCase
 
 class OidcResponseFixture extends PowerSchoolOidcController
 {
+    public function discovery(): array
+    {
+        return $this->getOidcConfiguration();
+    }
+
     protected function getDefaultAttributes(Request $request, Collection $data): array
     {
         return [];
