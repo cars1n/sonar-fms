@@ -172,6 +172,26 @@ class PowerSchoolOidcResponseTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_legacy_http_configuration_uses_https_discovery(): void
+    {
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        Http::fake(['https://school.example.test/*' => Http::response([
+            'token_endpoint' => 'https://school.example.test/token',
+            'authorization_endpoint' => 'https://school.example.test/authorize',
+            'scopes_supported' => ['openid'],
+        ])]);
+        $controller = new class extends OidcResponseFixture
+        {
+            protected function getPowerSchoolUrl(): string
+            {
+                return 'http://school.example.test';
+            }
+        };
+        $this->assertSame(['openid'], $controller->discovery()['scopes_supported']);
+        Http::assertSentCount(1);
+    }
+
     public function test_valid_response_preserves_user_factory_guard_and_login_response(): void
     {
         $this->provider(['id_token' => 'a.'.base64_encode('{"nonce":"synthetic-nonce","persona":"staff","sub":"synthetic-user"}').'.c']);

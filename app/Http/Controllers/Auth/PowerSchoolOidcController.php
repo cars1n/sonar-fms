@@ -66,7 +66,9 @@ class PowerSchoolOidcController extends Controller
     /** Use the same bounded, trusted discovery flow for initiation and callback. */
     protected function getOidcConfiguration(?string $key = null)
     {
-        $url = rtrim($this->getPowerSchoolUrl(), '/').'/oauth2/.well-known/openid-configuration';
+        // Older tenant settings may still use HTTP even though PowerSchool advertises HTTPS.
+        $url = preg_replace('/^http:/i', 'https:', rtrim($this->getPowerSchoolUrl(), '/'))
+            .'/oauth2/.well-known/openid-configuration';
         try {
             for ($redirects = 0; $redirects <= 5; $redirects++) {
                 abort_unless($this->isTrustedPowerSchoolUrl($url), 502);
