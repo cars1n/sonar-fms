@@ -48,19 +48,29 @@ class PowerSchoolOidcController extends Controller
         return redirect($tenant->ps_url);
     }
 
-    protected function isTrustedPowerSchoolUrl(mixed $url): bool
+    protected function isHttpsUrl(mixed $url): bool
     {
         if (! is_string($url) || ! filter_var($url, FILTER_VALIDATE_URL)) {
             return false;
         }
         $parts = parse_url($url);
+
+        return is_array($parts)
+            && strtolower($parts['scheme'] ?? '') === 'https'
+            && ! isset($parts['user']) && ! isset($parts['pass']);
+    }
+
+    protected function isTrustedPowerSchoolUrl(mixed $url): bool
+    {
+        if (! $this->isHttpsUrl($url)) {
+            return false;
+        }
+        $parts = parse_url($url);
         $trusted = parse_url($this->getPowerSchoolUrl());
 
-        return is_array($parts) && is_array($trusted)
-            && strtolower($parts['scheme'] ?? '') === 'https'
+        return is_array($trusted)
             && strtolower($parts['host'] ?? '') === strtolower($trusted['host'] ?? '')
-            && ($parts['port'] ?? 443) === ($trusted['port'] ?? 443)
-            && ! isset($parts['user']) && ! isset($parts['pass']);
+            && ($parts['port'] ?? 443) === ($trusted['port'] ?? 443);
     }
 
     /** Use the same bounded, trusted discovery flow for initiation and callback. */
@@ -89,7 +99,8 @@ class PowerSchoolOidcController extends Controller
         if ($key !== null) {
             return $configuration[$key] ?? null;
         }
-        abort_unless($this->isTrustedPowerSchoolUrl($configuration['authorization_endpoint'] ?? null)
+        // Browser authorization may use a separate SSO host; client secrets go only to the trusted token endpoint.
+        abort_unless($this->isHttpsUrl($configuration['authorization_endpoint'] ?? null)
             && is_array($configuration['scopes_supported'] ?? null)
             && collect($configuration['scopes_supported'])->every(fn ($scope) => is_string($scope)), 502);
 

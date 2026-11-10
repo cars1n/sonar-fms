@@ -167,8 +167,10 @@ class PowerSchoolOidcResponseTest extends TestCase
         Http::preventStrayRequests();
         Http::fakeSequence()
             ->push('', 302, ['Location' => '/canonical-discovery'])
-            ->push(['token_endpoint' => 'https://school.example.test/token', 'authorization_endpoint' => 'https://school.example.test/authorize', 'scopes_supported' => ['openid']]);
-        $this->assertSame(['openid'], (new OidcResponseFixture)->discovery()['scopes_supported']);
+            ->push(['token_endpoint' => 'https://school.example.test/token', 'authorization_endpoint' => 'https://login.example.test/authorize', 'scopes_supported' => ['openid']]);
+        $configuration = (new OidcResponseFixture)->discovery();
+        $this->assertSame(['openid'], $configuration['scopes_supported']);
+        $this->assertSame('https://login.example.test/authorize', $configuration['authorization_endpoint']);
         Http::assertSentCount(2);
     }
 
