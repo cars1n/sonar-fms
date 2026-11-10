@@ -5,6 +5,9 @@ namespace Tests\Feature;
 use App\Http\Controllers\Auth\PowerSchoolOidcController;
 use App\Models\User;
 use GrantHolle\PowerSchool\Auth\UserFactory;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Foundation\Testing\TestCase;
@@ -73,7 +76,7 @@ class PowerSchoolOidcResponseTest extends TestCase
             $this->provider($body);
             $request = $this->makeCallback();
             $this->denied($request, 403);
-            $this->assertFalse($request->session()->has('ps_oidc_nonce'));
+            $this->assertSame('synthetic-nonce', $request->session()->get('ps_oidc_nonce'));
             Http::assertSentCount(2);
         }
     }
@@ -94,6 +97,46 @@ class PowerSchoolOidcResponseTest extends TestCase
             $this->denied($this->makeCallback(), 502);
             Http::assertSentCount(1);
         }
+    }
+
+    public function test_discovery_failure_can_be_retried_with_the_original_nonce(): void
+    {
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        Http::fake(['*' => Http::failedConnection()]);
+        $request = $this->makeCallback();
+        $this->denied($request, 502);
+        $this->assertSame('synthetic-nonce', $request->session()->get('ps_oidc_nonce'));
+
+        $this->provider(['id_token' => 'a.'.base64_encode('{"nonce":"synthetic-nonce","persona":"staff"}').'.c']);
+        config(['powerschool-auth.staff.allowed' => false]);
+        $this->assertSame(403, (new OidcResponseFixture)->login($request)->getStatusCode());
+        $this->assertFalse($request->session()->has('ps_oidc_nonce'));
+    }
+
+    public function test_https_scheme_is_case_insensitive(): void
+    {
+        Http::swap(new Factory);
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://school.example.test/oauth2/.well-known/openid-configuration' => Http::response(['token_endpoint' => 'HTTPS://school.example.test/token']),
+            '*' => Http::response('null'),
+        ]);
+        $this->denied($this->makeCallback(), 403);
+        Http::assertSentCount(2);
+    }
+
+    public function test_discovery_follows_an_https_canonical_redirect_without_network_access(): void
+    {
+        Http::swap(new Factory);
+        $handler = new MockHandler([
+            new Response(302, ['Location' => 'https://canonical.example.test/discovery']),
+            new Response(200, ['Content-Type' => 'application/json'], '{"token_endpoint":"https://canonical.example.test/token"}'),
+            new Response(200, ['Content-Type' => 'application/json'], 'null'),
+        ]);
+        Http::globalOptions(['handler' => HandlerStack::create($handler)]);
+        $this->denied($this->makeCallback(), 403);
+        $this->assertSame(0, $handler->count());
     }
 
     public function test_valid_response_preserves_user_factory_guard_and_login_response(): void

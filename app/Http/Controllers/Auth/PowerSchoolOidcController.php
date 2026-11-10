@@ -54,18 +54,18 @@ class PowerSchoolOidcController extends Controller
         abort_unless(is_string($state) && is_string($expectedState) && $expectedState !== ''
             && hash_equals($expectedState, $state), 403);
 
-        $nonce = $request->session()->pull('ps_oidc_nonce');
+        $nonce = $request->session()->get('ps_oidc_nonce');
         $code = $request->input('code');
         abort_unless(is_string($nonce) && $nonce !== '' && is_string($code) && $code !== ''
             && ! $request->has('error'), 403);
 
         try {
-            $discovery = Http::acceptJson()->withoutRedirecting()->timeout(15)
+            $discovery = Http::acceptJson()->withOptions(['allow_redirects' => ['max' => 5, 'protocols' => ['https']]])->timeout(15)
                 ->get(rtrim($this->getPowerSchoolUrl(), '/').'/oauth2/.well-known/openid-configuration');
             $endpoint = $discovery->json('token_endpoint');
             abort_unless($discovery->successful() && is_string($endpoint)
                 && filter_var($endpoint, FILTER_VALIDATE_URL)
-                && parse_url($endpoint, PHP_URL_SCHEME) === 'https', 502);
+                && strtolower((string) parse_url($endpoint, PHP_URL_SCHEME)) === 'https', 502);
 
             $response = Http::asForm()->acceptJson()->withoutRedirecting()->timeout(15)
                 ->post($endpoint, [
@@ -89,6 +89,7 @@ class PowerSchoolOidcController extends Controller
         $claims = $decoded === false ? null : json_decode($decoded);
         abort_unless(is_object($claims) && is_string($claims->nonce ?? null)
             && hash_equals($nonce, $claims->nonce), 403);
+        $request->session()->forget('ps_oidc_nonce');
 
         $data = collect($claims);
         $persona = $data->get('usertype', $data->get('persona'));
